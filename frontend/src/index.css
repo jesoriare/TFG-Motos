@@ -1,0 +1,137 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* RodadaMoto — Dark asphalt design system */
+
+@layer base {
+  :root {
+    /* Core surfaces — asphalt black */
+    --background: 220 13% 6%;
+    --foreground: 30 15% 92%;
+
+    --card: 220 12% 9%;
+    --card-foreground: 30 15% 92%;
+
+    --popover: 220 12% 9%;
+    --popover-foreground: 30 15% 92%;
+
+    /* Primary — molten orange */
+    --primary: 25 100% 52%;
+    --primary-foreground: 0 0% 5%;
+
+    /* Secondary — dark steel */
+    --secondary: 220 10% 14%;
+    --secondary-foreground: 30 15% 80%;
+
+    --muted: 220 10% 14%;
+    --muted-foreground: 220 8% 52%;
+
+    /* Accent — ember glow */
+    --accent: 25 100% 52%;
+    --accent-foreground: 0 0% 5%;
+
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 10% 16%;
+    --input: 220 10% 16%;
+    --ring: 25 100% 52%;
+
+    --radius: 0.375rem;
+
+    /* Custom tokens */
+    --surface-1: 220 12% 9%;
+    --surface-2: 220 10% 12%;
+    --surface-3: 220 10% 16%;
+    --orange-glow: 25 100% 52%;
+    --orange-dim: 25 80% 38%;
+    --amber: 38 100% 55%;
+    --danger: 0 75% 55%;
+    --success: 142 71% 45%;
+    --warning: 38 100% 55%;
+
+    --sidebar-background: 220 13% 7%;
+    --sidebar-foreground: 30 15% 85%;
+    --sidebar-primary: 25 100% 52%;
+    --sidebar-primary-foreground: 0 0% 5%;
+    --sidebar-accent: 220 10% 14%;
+    --sidebar-accent-foreground: 30 15% 85%;
+    --sidebar-border: 220 10% 16%;
+    --sidebar-ring: 25 100% 52%;
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(to bottom, hsl(220 13% 6% / 0.2) 0%, hsl(220 13% 6% / 0.7) 60%, hsl(220 13% 6%) 100%);
+    --gradient-orange: linear-gradient(135deg, hsl(25 100% 52%), hsl(38 100% 55%));
+    --gradient-card: linear-gradient(145deg, hsl(220 12% 10%), hsl(220 10% 8%));
+    --shadow-orange: 0 0 30px hsl(25 100% 52% / 0.25);
+    --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.4);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Barlow', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+  }
+
+  .text-gradient-orange {
+    background: var(--gradient-orange);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glow-orange {
+    box-shadow: var(--shadow-orange);
+  }
+
+  .card-surface {
+    background: var(--gradient-card);
+    border: 1px solid hsl(var(--border));
+    box-shadow: var(--shadow-card);
+  }
+
+  .surface-1 {
+    background-color: hsl(var(--surface-1));
+  }
+  .surface-2 {
+    background-color: hsl(var(--surface-2));
+  }
+  .surface-3 {
+    background-color: hsl(var(--surface-3));
+  }
+  
+  .animate-pulse-orange {
+    animation: pulseOrange 2s infinite;
+  }
+
+  .stripe-border {
+    border-left: 3px solid hsl(var(--primary));
+  }
+}
+
+@keyframes pulseOrange {
+  0%, 100% { opacity: 1; box-shadow: 0 0 10px hsl(25 100% 52% / 0.5); }
+  50% { opacity: 0.8; box-shadow: 0 0 25px hsl(25 100% 52% / 0.8); }
+}
+
