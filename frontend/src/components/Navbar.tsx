@@ -1,15 +1,16 @@
 import { MapPin, Menu, X } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   const links = [
     { label: "Mapa", href: "#mapa" },
     { label: "Rutas", href: "#rutas" },
     { label: "Moteros", href: "#moteros" },
     { label: "Incidencias", href: "#incidencias" },
-    { label: "Circuitos", href: "#circuitos" },
   ];
 
   return (
@@ -43,7 +44,10 @@ export default function Navbar() {
           <button className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
             Entrar
           </button>
-          <button className="rounded-md bg-primary px-4 py-2 text-sm font-bold uppercase tracking-wider text-primary-foreground transition-all hover:opacity-90 hover:shadow-[0_0_20px_hsl(25_100%_52%/0.4)] glow-orange">
+          <button
+            onClick={() => navigate("/registro")}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-bold uppercase tracking-wider text-primary-foreground transition-all hover:opacity-90 hover:shadow-[0_0_20px_hsl(25_100%_52%/0.4)] glow-orange"
+          >
             Únete gratis
           </button>
         </div>
@@ -67,7 +71,10 @@ export default function Navbar() {
               {l.label}
             </a>
           ))}
-          <button className="mt-4 w-full rounded-md bg-primary py-2.5 text-sm font-bold uppercase tracking-wider text-primary-foreground">
+          <button
+            onClick={() => { setOpen(false); navigate("/registro"); }}
+            className="mt-4 w-full rounded-md bg-primary py-2.5 text-sm font-bold uppercase tracking-wider text-primary-foreground"
+          >
             Únete gratis
           </button>
         </div>
