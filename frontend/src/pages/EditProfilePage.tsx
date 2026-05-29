@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, ArrowLeft, User, AtSign, Bike, Gauge, Link, MapPinned } from "lucide-react";
+import { MapPin, ArrowLeft, User, AtSign, Bike, Gauge, Link, MapPinned, ChevronsUpDown, Check } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { CIUDADES_ESPANA } from "@/data/ciudades-espana";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 export default function EditProfilePage() {
   const navigate = useNavigate();
@@ -22,6 +26,7 @@ export default function EditProfilePage() {
 
   const [motoId, setMotoId] = useState<string | null>(null);
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
+  const [zonaOpen, setZonaOpen] = useState(false);
 
   useEffect(() => {
     async function loadProfile() {
@@ -227,14 +232,53 @@ export default function EditProfilePage() {
               />
 
               {/* Zona */}
-              <Field
-                label="Zona / Ciudad"
-                name="zona"
-                value={form.zona}
-                onChange={handleChange}
-                placeholder="Madrid, España"
-                icon={<MapPinned className="h-4 w-4" />}
-              />
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Zona / Ciudad
+                </label>
+                <Popover open={zonaOpen} onOpenChange={setZonaOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between rounded-md border border-border bg-surface-3 px-3 py-2.5 text-sm text-left focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <span className="flex items-center gap-2 text-sm">
+                        <MapPinned className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className={form.zona ? "text-foreground" : "text-muted-foreground/50"}>
+                          {form.zona || "Selecciona tu ciudad..."}
+                        </span>
+                      </span>
+                      <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 bg-card border-border w-[var(--radix-popover-trigger-width)]" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar ciudad..." className="text-sm" />
+                      <CommandList className="max-h-60">
+                        <CommandEmpty className="py-4 text-center text-sm text-muted-foreground">
+                          Ciudad no encontrada
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {CIUDADES_ESPANA.map((ciudad) => (
+                            <CommandItem
+                              key={ciudad}
+                              value={ciudad}
+                              onSelect={(val) => {
+                                setForm((prev) => ({ ...prev, zona: val }));
+                                setZonaOpen(false);
+                              }}
+                              className="text-sm cursor-pointer"
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", form.zona === ciudad ? "opacity-100" : "opacity-0")} />
+                              {ciudad}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
 
               {/* Separador moto */}
               <div className="flex items-center gap-3 py-1">
