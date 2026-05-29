@@ -93,13 +93,16 @@ export default function Navbar() {
             <div className="flex items-center gap-3">
               {/* Avatar */}
               <div className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-full border-2 border-primary overflow-hidden bg-surface-3 flex items-center justify-center">
+                <button
+                  onClick={() => navigate("/perfil/editar")}
+                  className="h-9 w-9 rounded-full border-2 border-primary overflow-hidden bg-surface-3 flex items-center justify-center hover:border-primary/70 transition-colors"
+                >
                   {avatarUrl ? (
                     <img src={avatarUrl} alt={username ?? "avatar"} className="h-full w-full object-cover" />
                   ) : (
                     <User className="h-4 w-4 text-muted-foreground" />
                   )}
-                </div>
+                </button>
                 {username && (
                   <span className="text-sm font-semibold text-foreground">@{username}</span>
                 )}
@@ -148,13 +151,16 @@ export default function Navbar() {
           {user ? (
             <div className="mt-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-full border-2 border-primary overflow-hidden bg-surface-3 flex items-center justify-center">
+                <button
+                  onClick={() => navigate("/perfil/editar")}
+                  className="h-9 w-9 rounded-full border-2 border-primary overflow-hidden bg-surface-3 flex items-center justify-center hover:border-primary/70 transition-colors"
+                >
                   {avatarUrl ? (
                     <img src={avatarUrl} alt={username ?? "avatar"} className="h-full w-full object-cover" />
                   ) : (
                     <User className="h-4 w-4 text-muted-foreground" />
                   )}
-                </div>
+                </button>
                 {username && (
                   <span className="text-sm font-semibold text-foreground">@{username}</span>
                 )}
