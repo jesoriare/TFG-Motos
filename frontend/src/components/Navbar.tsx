@@ -41,7 +41,10 @@ export default function Navbar() {
 
         {/* CTA */}
         <div className="hidden md:flex items-center gap-3">
-          <button className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
+          <button
+            onClick={() => navigate("/entrar")}
+            className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          >
             Entrar
           </button>
           <button
