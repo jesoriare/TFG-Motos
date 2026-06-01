@@ -35,23 +35,38 @@ router.put('/me', requireAuth, async (req, res) => {
   res.json(data);
 });
 
-// GET /usuarios — listar moteros (con filtros opcionales)
+// GET /usuarios — listar moteros con filtros opcionales
+// Query params: search (username/nombre/apellidos/zona/moto), tipo
 router.get('/', async (req, res) => {
-  const { zona, tipo } = req.query;
+  const { search, tipo } = req.query as { search?: string; tipo?: string };
 
-  let query = supabase
+  const { data, error } = await supabase
     .from('profiles')
-    .select(`id, nombre, username, avatar_url, zona, verified, online, motos (marca_modelo, cilindrada, tipo)`)
+    .select(`id, nombre, apellidos, username, avatar_url, zona, verified, online, motos (marca_modelo, cilindrada, tipo)`)
     .order('online', { ascending: false });
 
-  if (zona) query = query.ilike('zona', `%${zona}%`);
-
-  const { data, error } = await query;
   if (error) { res.status(500).json({ error: error.message }); return; }
 
-  const result = tipo
-    ? data.filter((u) => u.motos?.some((m: { tipo: string }) => m.tipo === tipo))
-    : data;
+  let result = data ?? [];
+
+  // Filtrar por tipo de moto
+  if (tipo) {
+    result = result.filter((u) =>
+      u.motos?.some((m: { tipo: string }) => m.tipo.toLowerCase() === tipo.toLowerCase())
+    );
+  }
+
+  // Filtrar por búsqueda: username, nombre, apellidos, zona y marca de moto
+  if (search) {
+    const s = search.toLowerCase();
+    result = result.filter((u) =>
+      u.username?.toLowerCase().includes(s) ||
+      u.nombre?.toLowerCase().includes(s) ||
+      u.apellidos?.toLowerCase().includes(s) ||
+      u.zona?.toLowerCase().includes(s) ||
+      u.motos?.some((m: { marca_modelo: string }) => m.marca_modelo?.toLowerCase().includes(s))
+    );
+  }
 
   res.json(result);
 });

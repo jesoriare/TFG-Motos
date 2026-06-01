@@ -32,17 +32,40 @@ export default function Navbar() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if (session?.user) loadProfile(session.user.id);
+      if (session?.user) {
+        loadProfile(session.user.id);
+        setOnline(session.user.id, true);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      if (session?.user) loadProfile(session.user.id);
-      else { setAvatarUrl(null); setUsername(null); }
+      if (session?.user) {
+        loadProfile(session.user.id);
+        setOnline(session.user.id, true);
+      } else {
+        setAvatarUrl(null);
+        setUsername(null);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    // Marcar offline al cerrar la pestaña
+    const handleUnload = () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) setOnline(session.user.id, false);
+      });
+    };
+    window.addEventListener("beforeunload", handleUnload);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("beforeunload", handleUnload);
+    };
   }, []);
+
+  async function setOnline(userId: string, online: boolean) {
+    await supabase.from("profiles").update({ online, last_seen: new Date().toISOString() }).eq("id", userId);
+  }
 
   async function loadProfile(userId: string) {
     const { data } = await supabase
