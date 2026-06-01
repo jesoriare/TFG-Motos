@@ -1,0 +1,27 @@
+{
+  "name": "motos",
+  "version": "1.0.0",
+  "description": "Plataforma web para motoristas centrada en la organización de rutas en grupo y la conexión social entre moteros.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "husky"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jesoriare/TFG-Motos.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/jesoriare/TFG-Motos/issues"
+  },
+  "homepage": "https://github.com/jesoriare/TFG-Motos#readme",
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.2",
+    "@commitlint/config-conventional": "^21.0.2",
+    "husky": "^9.1.7"
+  }
+}
