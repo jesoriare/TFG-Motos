@@ -51,6 +51,12 @@ export default function LoginPage() {
       return;
     }
 
+    // Marcar usuario como online
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await supabase.from("profiles").update({ online: true, last_seen: new Date().toISOString() }).eq("id", session.user.id);
+    }
+
     navigate("/");
   };
 

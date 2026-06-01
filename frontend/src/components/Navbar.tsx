@@ -57,6 +57,10 @@ export default function Navbar() {
   }
 
   async function handleLogout() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await supabase.from("profiles").update({ online: false, last_seen: new Date().toISOString() }).eq("id", session.user.id);
+    }
     await supabase.auth.signOut();
     navigate("/");
   }
@@ -94,7 +98,7 @@ export default function Navbar() {
               {/* Avatar */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => navigate("/perfil/editar")}
+                  onClick={() => navigate(`/perfil/${username}`)}
                   className="h-9 w-9 rounded-full border-2 border-primary overflow-hidden bg-surface-3 flex items-center justify-center hover:border-primary/70 transition-colors"
                 >
                   {avatarUrl ? (
@@ -104,7 +108,12 @@ export default function Navbar() {
                   )}
                 </button>
                 {username && (
-                  <span className="text-sm font-semibold text-foreground">@{username}</span>
+                  <button
+                    onClick={() => navigate(`/perfil/${username}`)}
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                  >
+                    @{username}
+                  </button>
                 )}
               </div>
               {/* Logout */}
@@ -152,7 +161,7 @@ export default function Navbar() {
             <div className="mt-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => navigate("/perfil/editar")}
+                  onClick={() => navigate(`/perfil/${username}`)}
                   className="h-9 w-9 rounded-full border-2 border-primary overflow-hidden bg-surface-3 flex items-center justify-center hover:border-primary/70 transition-colors"
                 >
                   {avatarUrl ? (
@@ -162,7 +171,12 @@ export default function Navbar() {
                   )}
                 </button>
                 {username && (
-                  <span className="text-sm font-semibold text-foreground">@{username}</span>
+                  <button
+                    onClick={() => navigate(`/perfil/${username}`)}
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                  >
+                    @{username}
+                  </button>
                 )}
               </div>
               <LogoutButton onConfirm={() => { setOpen(false); handleLogout(); }} />

@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import RegisterPage from "./pages/RegisterPage";
 import LoginPage from "./pages/LoginPage";
 import EditProfilePage from "./pages/EditProfilePage";
+import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/registro" element={<RegisterPage />} />
           <Route path="/entrar" element={<LoginPage />} />
           <Route path="/perfil/editar" element={<EditProfilePage />} />
+          <Route path="/perfil/:username" element={<ProfilePage />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
