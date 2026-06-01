@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, ArrowLeft, User, AtSign, Bike, Gauge, Link, MapPinned, ChevronsUpDown, Check } from "lucide-react";
+import { MapPin, ArrowLeft, User, AtSign, Bike, Gauge, MapPinned, ChevronsUpDown, Check, Camera, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { CIUDADES_ESPANA } from "@/data/ciudades-espana";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -27,6 +27,7 @@ export default function EditProfilePage() {
   const [motoId, setMotoId] = useState<string | null>(null);
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [zonaOpen, setZonaOpen] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     async function loadProfile() {
@@ -70,6 +71,36 @@ export default function EditProfilePage() {
     if (name === "avatar_url") setPreviewAvatar(value || null);
     if (error) setError(null);
     if (success) setSuccess(false);
+  };
+
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    setUploadingAvatar(true);
+    setError(null);
+
+    const ext = file.name.split(".").pop();
+    const path = `${session.user.id}/avatar.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(path, file, { upsert: true });
+
+    if (uploadError) {
+      setError("Error al subir la imagen: " + uploadError.message);
+      setUploadingAvatar(false);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+
+    setForm((prev) => ({ ...prev, avatar_url: publicUrl }));
+    setPreviewAvatar(publicUrl);
+    setUploadingAvatar(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -168,9 +199,11 @@ export default function EditProfilePage() {
 
           {/* Avatar preview */}
           <div className="flex justify-center mb-6">
-            <div className="relative">
+            <label className="relative cursor-pointer group">
               <div className="h-24 w-24 rounded-full border-4 border-primary overflow-hidden bg-surface-3 flex items-center justify-center">
-                {previewAvatar ? (
+                {uploadingAvatar ? (
+                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                ) : previewAvatar ? (
                   <img
                     src={previewAvatar}
                     alt="Avatar"
@@ -181,22 +214,26 @@ export default function EditProfilePage() {
                   <User className="h-10 w-10 text-muted-foreground" />
                 )}
               </div>
-            </div>
+              {/* Overlay cámara */}
+              <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Camera className="h-7 w-7 text-white" />
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarFile}
+                disabled={uploadingAvatar}
+              />
+            </label>
           </div>
+          <p className="text-center text-xs text-muted-foreground -mt-4 mb-2">
+            Pulsa la imagen para cambiar el avatar
+          </p>
 
           {/* Card */}
           <div className="card-surface rounded-xl p-6 sm:p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
-
-              {/* Avatar URL */}
-              <Field
-                label="URL del avatar"
-                name="avatar_url"
-                value={form.avatar_url}
-                onChange={handleChange}
-                placeholder="https://ejemplo.com/mi-foto.jpg"
-                icon={<Link className="h-4 w-4" />}
-              />
 
               {/* Nombre + Apellidos */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
