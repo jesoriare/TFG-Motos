@@ -39,12 +39,12 @@ export default function HeroSection() {
         </p>
 
         <div className="flex flex-wrap gap-3 mb-16">
-          <button className="flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-sm font-bold uppercase tracking-wider text-primary-foreground transition-all hover:opacity-90 hover:shadow-[0_0_30px_hsl(25_100%_52%/0.5)]">
+          <a href="#rutas" className="flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-sm font-bold uppercase tracking-wider text-primary-foreground transition-all hover:opacity-90 hover:shadow-[0_0_30px_hsl(25_100%_52%/0.5)]">
             Explorar rutas <ArrowRight className="h-4 w-4" />
-          </button>
-          <button className="flex items-center gap-2 rounded-md border border-border bg-surface-2 px-6 py-3.5 text-sm font-bold uppercase tracking-wider text-foreground transition-all hover:border-primary/50 hover:bg-surface-3">
+          </a>
+          <a href="#mapa" className="flex items-center gap-2 rounded-md border border-border bg-surface-2 px-6 py-3.5 text-sm font-bold uppercase tracking-wider text-foreground transition-all hover:border-primary/50 hover:bg-surface-3">
             Ver el mapa en vivo
-          </button>
+          </a>
         </div>
 
         {/* Stats */}
