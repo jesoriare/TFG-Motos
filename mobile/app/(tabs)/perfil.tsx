@@ -1,9 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
+
+function SinSesion() {
+  const router = useRouter();
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+      <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.surface2, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+        <Ionicons name="person-outline" size={36} color={colors.muted} />
+      </View>
+      <Text style={{ fontSize: 26, fontWeight: '900', color: colors.foreground, marginBottom: 8 }}>TU PERFIL</Text>
+      <Text style={{ color: colors.muted, fontSize: 14, textAlign: 'center', marginBottom: 32, lineHeight: 22 }}>
+        Inicia sesión para ver tu perfil, rutas publicadas y conectar con otros moteros.
+      </Text>
+      <TouchableOpacity
+        style={{ backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, paddingHorizontal: 40, marginBottom: 12, width: '100%', alignItems: 'center' }}
+        onPress={() => router.push('/entrar')}
+      >
+        <Text style={{ color: colors.primaryFg, fontWeight: '800', fontSize: 14, letterSpacing: 1.5 }}>INICIAR SESIÓN</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center' }}
+        onPress={() => router.push('/registro')}
+      >
+        <Text style={{ color: colors.foreground, fontWeight: '700', fontSize: 14 }}>Crear cuenta gratis</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 interface Profile {
   id: string; nombre: string; apellidos: string; username: string;
@@ -16,14 +43,29 @@ export default function PerfilScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [motos, setMotos] = useState<Moto[]>([]);
   const [rutasCount, setRutasCount] = useState(0);
+  const [sinSesion, setSinSesion] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    load();
+  }, []));
 
   useEffect(() => {
-    load();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (!session) { setSinSesion(true); setProfile(null); }
+      else { setSinSesion(false); load(); }
+    });
+    return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (sinSesion) router.replace('/entrar');
+  }, [sinSesion]);
+
+  if (sinSesion) return null;
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { router.replace('/entrar'); return; }
+    if (!session) { setSinSesion(true); return; }
 
     const [{ data: p }, { data: m }, { data: r }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', session.user.id).single(),

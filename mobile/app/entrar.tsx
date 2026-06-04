@@ -2,8 +2,10 @@ import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { getEmailByUsername } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
@@ -46,7 +48,14 @@ export default function EntrarScreen() {
   }
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView style={s.scroll} contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+      {/* Botón volver */}
+      <TouchableOpacity style={s.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')}>
+        <Ionicons name="arrow-back" size={18} color={colors.muted} />
+        <Text style={s.backText}>Volver</Text>
+      </TouchableOpacity>
+
       {/* Badge */}
       <View style={s.badge}>
         <View style={s.dot} />
@@ -97,6 +106,7 @@ export default function EntrarScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -107,6 +117,8 @@ function Label({ text }: { text: string }) {
 const s = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.background },
   container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 24 },
+  backText: { color: colors.muted, fontSize: 14, fontWeight: '600' },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.primary + '60', backgroundColor: colors.primary + '18', borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 20 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
   badgeText: { color: colors.primary, fontSize: 11, fontWeight: '700', letterSpacing: 2 },

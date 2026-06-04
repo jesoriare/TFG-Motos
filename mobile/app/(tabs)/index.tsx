@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
@@ -8,19 +8,22 @@ import { colors, radius } from '@/constants/theme';
 export default function InicioScreen() {
   const router = useRouter();
   const [username, setUsername] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
   const [stats] = useState([
     { icon: 'people', value: '12.400+', label: 'Moteros activos' },
     { icon: 'map', value: '3.800+', label: 'Rutas publicadas' },
     { icon: 'warning', value: 'En directo', label: 'Incidencias' },
   ]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) return;
-      const { data } = await supabase.from('profiles').select('username').eq('id', session.user.id).single();
-      if (data) setUsername(data.username);
+      if (!session) { setLoggedIn(false); return; }
+      setLoggedIn(true);
+      const { data } = await supabase.from('profiles').select('username, avatar_url').eq('id', session.user.id).single();
+      if (data) { setUsername(data.username); setAvatarUrl(data.avatar_url); }
     });
-  }, []);
+  }, []));
 
   const menu = [
     { icon: 'map-outline', label: 'Rutas', sub: 'Descubre rutas épicas', route: '/(tabs)/rutas', color: colors.primary },
@@ -38,7 +41,10 @@ export default function InicioScreen() {
           <Text style={s.logo}>RODADA<Text style={s.logoOrange}>MOTO</Text></Text>
         </View>
         <TouchableOpacity style={s.avatar} onPress={() => router.push('/(tabs)/perfil')}>
-          <Ionicons name="person" size={20} color={colors.primary} />
+          {avatarUrl
+            ? <Image source={{ uri: avatarUrl }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+            : <Ionicons name="person" size={20} color={colors.primary} />
+          }
         </TouchableOpacity>
       </View>
 
@@ -50,6 +56,23 @@ export default function InicioScreen() {
         </View>
         <Text style={s.heroTitle}>LA RUTA{'\n'}<Text style={s.heroOrange}>EMPIEZA</Text>{'\n'}AQUÍ</Text>
         <Text style={s.heroSub}>Conecta con moteros de tu zona, descubre rutas épicas y comparte incidencias en tiempo real.</Text>
+
+        {!loggedIn && (
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 12, alignItems: 'center' }}
+              onPress={() => router.push('/entrar')}
+            >
+              <Text style={{ color: colors.primaryFg, fontWeight: '800', fontSize: 13, letterSpacing: 1 }}>INICIAR SESIÓN</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 12, alignItems: 'center' }}
+              onPress={() => router.push('/registro')}
+            >
+              <Text style={{ color: colors.foreground, fontWeight: '700', fontSize: 13 }}>Únete gratis</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Stats */}
