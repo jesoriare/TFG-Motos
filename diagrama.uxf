@@ -1,0 +1,106 @@
+<diagram program="umletino" version="15.1"><zoom_level>5</zoom_level><element><id>UMLClass</id><coordinates><x>262</x><y>225</y><w>150</w><h>125</h></coordinates><panel_attributes>profiles
+--
+PK id: uuid
+nombre: text
+apellidos: text
+username: text (unique)
+avatar_url: text
+zona: text
+verified: boolean
+online: boolean
+last_seen: timestamptz
+created_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>47</x><y>225</y><w>140</w><h>100</h></coordinates><panel_attributes>motos
+--
+PK id: uuid
+FK user_id: uuid
+marca_modelo: text
+cilindrada: integer
+tipo: tipo_moto
+principal: boolean
+created_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>262</x><y>400</y><w>150</w><h>125</h></coordinates><panel_attributes>rutas
+--
+PK id: uuid
+FK user_id: uuid
+nombre: text
+region: text
+distancia_km: integer
+duracion_min: integer
+dificultad: dificultad_ruta
+descripcion: text
+tags: text[]
+publicada: boolean
+created_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>42</x><y>390</y><w>140</w><h>100</h></coordinates><panel_attributes>valoraciones_ruta
+--
+PK id: uuid
+FK ruta_id: uuid
+FK user_id: uuid
+puntuacion: integer
+comentario: text
+created_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>232</x><y>560</y><w>140</w><h>50</h></coordinates><panel_attributes>rutas_favoritas
+--
+FK user_id: uuid
+FK ruta_id: uuid
+created_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>467</x><y>225</y><w>150</w><h>125</h></coordinates><panel_attributes>incidencias
+--
+PK id: uuid
+FK user_id: uuid
+tipo: tipo_incidencia
+descripcion: text
+via: text
+severidad: severidad_incidencia
+confirmaciones: integer
+lat: numeric
+lng: numeric
+activa: boolean
+created_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>447</x><y>395</y><w>140</w><h>75</h></coordinates><panel_attributes>confirmaciones_incidencia
+--
+FK incidencia_id: uuid
+FK user_id: uuid
+created_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>192</x><y>70</y><w>135</w><h>105</h></coordinates><panel_attributes>grupos
+--
+PK id: uuid
+FK lider_id: uuid
+FK ruta_id: uuid
+nombre: text
+activo: boolean
+created_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>17</x><y>80</y><w>135</w><h>60</h></coordinates><panel_attributes>miembros_grupo
+--
+FK grupo_id: uuid
+FK user_id: uuid
+joined_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>432</x><y>80</y><w>140</w><h>65</h></coordinates><panel_attributes>ubicaciones
+--
+FK user_id: uuid
+lat: numeric
+lng: numeric
+updated_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>622</x><y>95</y><w>135</w><h>95</h></coordinates><panel_attributes>puntos_interes
+--
+PK id: uuid
+FK user_id: uuid
+tipo: tipo_poi
+nombre: text
+descripcion: text
+lat: numeric
+lng: numeric
+created_at: timestamptz</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>182</x><y>270</y><w>90</w><h>20</h></coordinates><panel_attributes>lt=-&gt;
+m1=1
+m2=0..*</panel_attributes><additional_attributes>152;10;10;10</additional_attributes></element><element><id>Relation</id><coordinates><x>327</x><y>345</y><w>25</w><h>70</h></coordinates><panel_attributes>lt=-&gt;
+m1=1
+m2=0..*</panel_attributes><additional_attributes>10;10;10;112</additional_attributes></element><element><id>Relation</id><coordinates><x>402</x><y>270</y><w>75</w><h>20</h></coordinates><panel_attributes>lt=-&gt;
+m1=1
+m2=0..*</panel_attributes><additional_attributes>10;10;122;10</additional_attributes></element><element><id>Relation</id><coordinates><x>267</x><y>170</y><w>25</w><h>65</h></coordinates><panel_attributes>lt=-&gt;
+m1=1
+m2=0..*</panel_attributes><additional_attributes>10;110;12;10</additional_attributes></element><element><id>Relation</id><coordinates><x>537</x><y>345</y><w>25</w><h>65</h></coordinates><panel_attributes>lt=-&gt;
+m1=1
+m2=0..*</panel_attributes><additional_attributes>10;10;10;102</additional_attributes></element><element><id>Relation</id><coordinates><x>177</x><y>440</y><w>100</w><h>20</h></coordinates><panel_attributes>lt=-&gt;
+m1=1
+m2=0..*</panel_attributes><additional_attributes>172;10;10;10</additional_attributes></element><element><id>Relation</id><coordinates><x>282</x><y>520</y><w>25</w><h>50</h></coordinates><panel_attributes>lt=-&gt;
+m1=1
+m2=0..*</panel_attributes><additional_attributes>15;15;10;82</additional_attributes></element><element><id>Relation</id><coordinates><x>147</x><y>85</y><w>55</w><h>20</h></coordinates><panel_attributes>lt=-&gt;
+m1=1
+m2=0..*</panel_attributes><additional_attributes>90;13;11;12</additional_attributes></element><element><id>Relation</id><coordinates><x>407</x><y>170</y><w>230</w><h>85</h></coordinates><panel_attributes>lt=-&gt;
+m1=1
+m2=0..*</panel_attributes><additional_attributes>10;150;122;30;432;10</additional_attributes></element><element><id>Relation</id><coordinates><x>387</x><y>135</y><w>60</w><h>100</h></coordinates><panel_attributes>lt=-&gt;
+m1=0..1
+m2=1</panel_attributes><additional_attributes>10;180;12;10;92;15</additional_attributes></element><element><id>Relation</id><coordinates><x>127</x><y>135</y><w>140</w><h>120</h></coordinates><panel_attributes>lt=-&gt;
+m1=1
+m2=0..*</panel_attributes><additional_attributes>260;220;12;10</additional_attributes></element></diagram>
