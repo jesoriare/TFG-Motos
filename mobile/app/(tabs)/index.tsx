@@ -123,7 +123,7 @@ const s = StyleSheet.create({
   statValue: { color: colors.foreground, fontSize: 14, fontWeight: '800' },
   statLabel: { color: colors.muted, fontSize: 10, textAlign: 'center' },
   sectionTitle: { color: colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 12 },
-  menuGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  menuGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingBottom: 100 },
   menuCard: { width: '47%', backgroundColor: colors.surface1, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 8 },
   menuIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   menuLabel: { color: colors.foreground, fontSize: 15, fontWeight: '700' },

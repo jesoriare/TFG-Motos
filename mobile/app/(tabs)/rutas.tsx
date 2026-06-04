@@ -62,7 +62,7 @@ export default function RutasScreen() {
         <FlatList
           data={rutas}
           keyExtractor={r => r.id}
-          contentContainerStyle={{ padding: 20, paddingTop: 0, gap: 12 }}
+          contentContainerStyle={{ padding: 20, paddingTop: 0, paddingBottom: 100, gap: 12 }}
           ListEmptyComponent={<Text style={s.empty}>No hay rutas publicadas aún</Text>}
           renderItem={({ item: r }) => {
             const difColor = DIFICULTAD_COLOR[r.dificultad] ?? colors.muted;

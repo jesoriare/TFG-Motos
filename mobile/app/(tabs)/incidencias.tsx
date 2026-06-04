@@ -122,7 +122,7 @@ export default function IncidenciasScreen() {
         <FlatList
           data={incidencias}
           keyExtractor={i => i.id}
-          contentContainerStyle={{ padding: 20, paddingTop: 0, gap: 12 }}
+          contentContainerStyle={{ padding: 20, paddingTop: 0, paddingBottom: 100, gap: 12 }}
           ListEmptyComponent={<Text style={s.empty}>No hay incidencias activas</Text>}
           renderItem={({ item: inc }) => {
             const sevColor = SEV_COLOR[inc.severidad] ?? colors.muted;

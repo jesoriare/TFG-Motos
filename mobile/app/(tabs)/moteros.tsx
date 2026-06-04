@@ -90,7 +90,7 @@ export default function MoteroScreen() {
         <FlatList
           data={riders}
           keyExtractor={r => r.id}
-          contentContainerStyle={{ padding: 20, paddingTop: 0, gap: 12 }}
+          contentContainerStyle={{ padding: 20, paddingTop: 0, paddingBottom: 100, gap: 12 }}
           ListEmptyComponent={<Text style={s.empty}>No se encontraron moteros</Text>}
           renderItem={({ item: r }) => {
             const moto = r.motos?.[0];

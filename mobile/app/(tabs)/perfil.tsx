@@ -201,7 +201,7 @@ const s = StyleSheet.create({
   motoCard: { backgroundColor: colors.surface1, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.primary, padding: 12 },
   motoName: { color: colors.foreground, fontWeight: '700', fontSize: 14 },
   motoSub: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  actions: { width: '100%', gap: 10 },
+  actions: { width: '100%', gap: 10, paddingBottom: 100 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface1, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 16 },
   actionText: { color: colors.foreground, fontSize: 15, fontWeight: '600' },
   logoutBtn: { borderColor: colors.danger + '40', backgroundColor: colors.danger + '10' },
