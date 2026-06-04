@@ -1,4 +1,5 @@
-import { Route, Clock, TrendingUp, Star, Users, ArrowRight, Mountain, Sunset, Trees } from "lucide-react";
+import { Route, Clock, TrendingUp, Star, Users, ArrowRight, Mountain, Sunset, Trees, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const routes = [
   {
@@ -46,15 +47,24 @@ const routes = [
 ];
 
 export default function RoutesSection() {
+  const navigate = useNavigate();
   return (
     <section id="rutas" className="py-20 px-4 surface-1">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-10">
-          <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2">Rutas predefinidas</p>
-          <h2 className="font-display text-5xl md:text-6xl text-foreground mb-4">RUTAS<br className="hidden sm:block" /> ÉPICAS</h2>
-          <p className="max-w-md text-muted-foreground text-sm">
-            Rutas verificadas y valoradas por la comunidad. Desde circuitos de montaña hasta rutas costeras.
-          </p>
+        <div className="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2">Rutas predefinidas</p>
+            <h2 className="font-display text-5xl md:text-6xl text-foreground mb-4">RUTAS<br className="hidden sm:block" /> ÉPICAS</h2>
+            <p className="max-w-md text-muted-foreground text-sm">
+              Rutas verificadas y valoradas por la comunidad. Desde circuitos de montaña hasta rutas costeras.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("/rutas/crear")}
+            className="flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-bold uppercase tracking-wider text-primary-foreground transition-all hover:opacity-90 hover:shadow-[0_0_20px_hsl(25_100%_52%/0.4)] shrink-0"
+          >
+            <Plus className="h-4 w-4" /> Crear ruta
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
