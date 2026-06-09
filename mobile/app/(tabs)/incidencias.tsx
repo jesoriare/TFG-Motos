@@ -1,24 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Modal, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform,
+  TouchableOpacity, Modal, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getIncidencias } from '@/lib/api';
+import { getIncidencias, confirmarIncidencia, eliminarIncidencia } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
 
-const MOCK_INCIDENCIAS = [
-  { id: '1', tipo: 'control_gc', descripcion: 'Control de la Guardia Civil con radar fijo. Colas de más de 500m.', via: 'A-4, km 47 dirección Córdoba', severidad: 'high', confirmaciones: 14, created_at: new Date(Date.now() - 12 * 60000).toISOString(), profiles: { username: 'carlos_ducatero' } },
-  { id: '2', tipo: 'radar', descripcion: 'Radar móvil camuflado en furgoneta blanca.', via: 'N-320, salida Guadalajara Norte', severidad: 'medium', confirmaciones: 8, created_at: new Date(Date.now() - 28 * 60000).toISOString(), profiles: { username: 'ana_bmwrider' } },
-  { id: '3', tipo: 'firme_mal_estado', descripcion: 'Gravilla suelta tras obras. Peligroso en curva.', via: 'MA-3300, Ronda - Arriate, km 12', severidad: 'high', confirmaciones: 22, created_at: new Date(Date.now() - 45 * 60000).toISOString(), profiles: { username: 'javi_ktm' } },
-  { id: '4', tipo: 'accidente', descripcion: 'Accidente resuelto. Carretera despejada.', via: 'AP-7, km 134 dirección Barcelona', severidad: 'resolved', confirmaciones: 5, created_at: new Date(Date.now() - 90 * 60000).toISOString(), profiles: { username: 'rob_honda' } },
-  { id: '5', tipo: 'obras', descripcion: 'Obras de asfaltado. Carril cortado, paso alternativo.', via: 'C-17, Ripoll - Puigcerdà', severidad: 'low', confirmaciones: 3, created_at: new Date(Date.now() - 120 * 60000).toISOString(), profiles: { username: 'luci_kawasaki' } },
-];
-
 const TIPO_ICON: Record<string, string> = {
   control_gc: 'shield', radar: 'speedometer', firme_mal_estado: 'warning',
-  accidente: 'car-crash', obras: 'construct', otro: 'alert-circle',
+  accidente: 'alert-circle', obras: 'construct', otro: 'alert-circle',
 };
 const TIPO_LABEL: Record<string, string> = {
   control_gc: 'Control GC', radar: 'Radar móvil', firme_mal_estado: 'Firme en mal estado',
@@ -47,7 +39,7 @@ const SEV_OPCIONES = [
 ];
 
 interface Incidencia {
-  id: string; tipo: string; descripcion: string; via: string;
+  id: string; user_id: string; tipo: string; descripcion: string; via: string;
   severidad: string; confirmaciones: number; created_at: string;
   profiles: { username: string };
 }
@@ -62,13 +54,57 @@ function timeAgo(dateStr: string) {
 export default function IncidenciasScreen() {
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [form, setForm] = useState({ tipo: 'control_gc', descripcion: '', via: '', severidad: 'medium' });
+  const [form, setForm] = useState({ tipo: 'control_gc', descripcion: '', via: '', severidad: 'medium', expiry_hours: 2 });
+
+  async function fetchIncidencias() {
+    const data = await getIncidencias();
+    setIncidencias(data ?? []);
+    setLoading(false);
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await fetchIncidencias();
+    setRefreshing(false);
+  }
 
   useEffect(() => {
-    getIncidencias().then(data => { setIncidencias(data?.length ? data : MOCK_INCIDENCIAS); setLoading(false); });
+    fetchIncidencias();
+    supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id ?? null));
   }, []);
+
+  async function handleConfirmar(id: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { Alert.alert('Inicia sesión', 'Debes iniciar sesión para confirmar'); return; }
+    const result = await confirmarIncidencia(id, session.access_token);
+    if (result) {
+      setConfirmedIds(prev => {
+        const next = new Set(prev);
+        result.confirmado ? next.add(id) : next.delete(id);
+        return next;
+      });
+      fetchIncidencias();
+    }
+  }
+
+  async function handleEliminar(id: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    Alert.alert('Eliminar incidencia', '¿Seguro que quieres eliminarla?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar', style: 'destructive', onPress: async () => {
+          const ok = await eliminarIncidencia(id, session.access_token);
+          if (ok) setIncidencias(prev => prev.filter(i => i.id !== id));
+        },
+      },
+    ]);
+  }
 
   async function handleReportar() {
     if (!form.descripcion || !form.via) {
@@ -84,12 +120,14 @@ export default function IncidenciasScreen() {
       return;
     }
 
+    const expires_at = new Date(Date.now() + form.expiry_hours * 60 * 60 * 1000).toISOString();
     const { error } = await supabase.from('incidencias').insert({
       user_id: session.user.id,
       tipo: form.tipo,
       descripcion: form.descripcion,
       via: form.via,
       severidad: form.severidad,
+      expires_at,
       lat: 0, lng: 0,
     });
 
@@ -97,14 +135,13 @@ export default function IncidenciasScreen() {
     if (error) { Alert.alert('Error', error.message); return; }
 
     setModalVisible(false);
-    setForm({ tipo: 'control_gc', descripcion: '', via: '', severidad: 'medium' });
+    setForm({ tipo: 'control_gc', descripcion: '', via: '', severidad: 'medium', expiry_hours: 2 });
     Alert.alert('¡Gracias!', 'Incidencia reportada correctamente');
-    getIncidencias().then(data => { if (data?.length) setIncidencias(data); });
+    fetchIncidencias();
   }
 
   return (
     <View style={s.container}>
-      {/* Header */}
       <View style={s.header}>
         <View>
           <Text style={s.title}>INCIDENCIAS</Text>
@@ -123,9 +160,11 @@ export default function IncidenciasScreen() {
           data={incidencias}
           keyExtractor={i => i.id}
           contentContainerStyle={{ padding: 20, paddingTop: 0, paddingBottom: 100, gap: 12 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           ListEmptyComponent={<Text style={s.empty}>No hay incidencias activas</Text>}
           renderItem={({ item: inc }) => {
             const sevColor = SEV_COLOR[inc.severidad] ?? colors.muted;
+            const isOwn = inc.user_id === currentUserId;
             return (
               <View style={[s.card, { borderLeftColor: sevColor, borderLeftWidth: 3 }]}>
                 <View style={s.cardTop}>
@@ -142,10 +181,36 @@ export default function IncidenciasScreen() {
                 </View>
                 <Text style={s.desc}>{inc.descripcion}</Text>
                 <View style={s.footer}>
-                  <Text style={s.meta}>{timeAgo(inc.created_at)}</Text>
-                  <View style={s.confirmBtn}>
-                    <Ionicons name="checkmark-circle-outline" size={14} color={colors.muted} />
-                    <Text style={s.confirmText}>{inc.confirmaciones} confirmaciones</Text>
+                  <Text style={s.meta}>{timeAgo(inc.created_at)} · @{inc.profiles?.username}</Text>
+                  <View style={s.actions}>
+                    {!isOwn && currentUserId && (() => {
+                      const confirmed = confirmedIds.has(inc.id);
+                      return (
+                        <TouchableOpacity
+                          style={[s.confirmBtn, confirmed && s.confirmBtnActive]}
+                          onPress={() => handleConfirmar(inc.id)}
+                        >
+                          <Ionicons
+                            name={confirmed ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                            size={14}
+                            color={confirmed ? colors.success : colors.muted}
+                          />
+                          {confirmed && <Text style={[s.confirmText, { color: colors.success }]}>Confirmada</Text>}
+                          <Text style={[s.confirmText, confirmed && { color: colors.success }]}>{inc.confirmaciones}</Text>
+                        </TouchableOpacity>
+                      );
+                    })()}
+                    {isOwn && (
+                      <TouchableOpacity onPress={() => handleEliminar(inc.id)} style={s.deleteBtn}>
+                        <Ionicons name="trash-outline" size={14} color={colors.danger} />
+                      </TouchableOpacity>
+                    )}
+                    {!currentUserId && (
+                      <View style={s.confirmBtn}>
+                        <Ionicons name="checkmark-circle-outline" size={14} color={colors.muted} />
+                        <Text style={s.confirmText}>{inc.confirmaciones}</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
               </View>
@@ -154,7 +219,6 @@ export default function IncidenciasScreen() {
         />
       )}
 
-      {/* Modal reportar */}
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={s.modalOverlay}>
@@ -167,7 +231,6 @@ export default function IncidenciasScreen() {
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Tipo */}
                 <Text style={s.label}>TIPO DE INCIDENCIA</Text>
                 <View style={s.tiposGrid}>
                   {TIPOS_OPCIONES.map(t => (
@@ -182,7 +245,6 @@ export default function IncidenciasScreen() {
                   ))}
                 </View>
 
-                {/* Severidad */}
                 <Text style={s.label}>SEVERIDAD</Text>
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
                   {SEV_OPCIONES.map(sv => (
@@ -196,7 +258,6 @@ export default function IncidenciasScreen() {
                   ))}
                 </View>
 
-                {/* Vía */}
                 <Text style={s.label}>VÍA / CARRETERA *</Text>
                 <TextInput
                   style={s.input}
@@ -206,7 +267,19 @@ export default function IncidenciasScreen() {
                   placeholderTextColor={colors.muted + '60'}
                 />
 
-                {/* Descripción */}
+                <Text style={s.label}>TIEMPO DE EXPIRACIÓN</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                  {[1, 2, 4, 8, 24].map(h => (
+                    <TouchableOpacity
+                      key={h}
+                      style={[s.sevBtn, form.expiry_hours === h && { borderColor: colors.primary, backgroundColor: colors.primary + '20' }]}
+                      onPress={() => setForm(p => ({ ...p, expiry_hours: h }))}
+                    >
+                      <Text style={[s.sevBtnText, form.expiry_hours === h && { color: colors.primary }]}>{h}h</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
                 <Text style={s.label}>DESCRIPCIÓN *</Text>
                 <TextInput
                   style={[s.input, { height: 90, textAlignVertical: 'top' }]}
@@ -248,9 +321,12 @@ const s = StyleSheet.create({
   sevText: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
   desc: { color: colors.muted, fontSize: 13, lineHeight: 20 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  meta: { color: colors.muted, fontSize: 11 },
-  confirmBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  meta: { color: colors.muted, fontSize: 11, flex: 1 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  confirmBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 3, borderRadius: radius.full },
+  confirmBtnActive: { backgroundColor: colors.success + '20' },
   confirmText: { color: colors.muted, fontSize: 11 },
+  deleteBtn: { padding: 2 },
   empty: { color: colors.muted, textAlign: 'center', marginTop: 40 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000000AA' },
   modalCard: { backgroundColor: colors.surface1, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: 20, maxHeight: '90%' },

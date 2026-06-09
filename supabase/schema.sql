@@ -101,6 +101,7 @@ create table incidencias (
   lat             numeric(10, 6) not null,
   lng             numeric(10, 6) not null,
   activa          boolean not null default true,
+  expires_at      timestamptz not null default (now() + interval '4 hours'),
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
