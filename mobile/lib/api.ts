@@ -34,3 +34,20 @@ export async function getIncidencias() {
   if (!res.ok) return [];
   return res.json();
 }
+
+export async function confirmarIncidencia(id: string, token: string) {
+  const res = await fetch(`${API_URL}/incidencias/${id}/confirmar`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function eliminarIncidencia(id: string, token: string): Promise<boolean> {
+  const res = await fetch(`${API_URL}/incidencias/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.ok;
+}
