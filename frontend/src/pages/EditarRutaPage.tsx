@@ -1,11 +1,12 @@
 import 'leaflet/dist/leaflet.css';
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MapPin, ArrowLeft, Route, MapPinned, Gauge, Clock, Mountain, Tag, X, Trash2, AlertCircle, Search } from "lucide-react";
+import { MapPin, ArrowLeft, Route, MapPinned, Gauge, Clock, Mountain, Tag, X, Trash2, AlertCircle, Search, ChevronDown } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { supabase } from "@/lib/supabase";
+import { CIUDADES_ESPANA } from "@/data/ciudades-espana";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
 
@@ -76,6 +77,9 @@ export default function EditarRutaPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const regionRef = useRef<HTMLDivElement>(null);
+  const [regionQuery, setRegionQuery] = useState("");
+  const [regionOpen, setRegionOpen] = useState(false);
   const [form, setForm] = useState({
     nombre: "", region: "", distancia_km: "",
     horas: "", minutos: "", dificultad: "media",
@@ -170,6 +174,7 @@ export default function EditarRutaPage() {
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
+      if (regionRef.current && !regionRef.current.contains(e.target as Node)) setRegionOpen(false);
     }
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
@@ -388,7 +393,36 @@ export default function EditarRutaPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <Field label="Nombre de la ruta" name="nombre" value={form.nombre} onChange={handleChange} placeholder="Ruta de las Águilas" icon={<Route className="h-4 w-4" />} required />
-              <Field label="Región / Provincia" name="region" value={form.region} onChange={handleChange} placeholder="Sierra de Gredos, Ávila" icon={<MapPinned className="h-4 w-4" />} required />
+              <div className="space-y-1.5" ref={regionRef}>
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Región / Provincia <span className="text-primary">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"><MapPinned className="h-4 w-4" /></span>
+                  <input
+                    value={regionQuery || form.region}
+                    onChange={e => { setRegionQuery(e.target.value); setForm(p => ({ ...p, region: e.target.value })); setRegionOpen(true); }}
+                    onFocus={() => setRegionOpen(true)}
+                    onKeyDown={e => e.key === 'Escape' && setRegionOpen(false)}
+                    placeholder="Busca una ciudad o provincia..."
+                    className="w-full rounded-md border border-border bg-surface-3 pl-10 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
+                {regionOpen && (
+                  <ul className="absolute z-[1001] w-full max-h-48 overflow-y-auto mt-1 rounded-md border border-border bg-card shadow-xl">
+                    {CIUDADES_ESPANA.filter(c => c.toLowerCase().includes((regionQuery || form.region).toLowerCase())).slice(0, 40).map(ciudad => (
+                      <li key={ciudad}>
+                        <button type="button" onMouseDown={() => { setForm(p => ({ ...p, region: ciudad })); setRegionQuery(""); setRegionOpen(false); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-surface-2 transition-colors">
+                          <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span className="text-foreground truncate">{ciudad}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Distancia (km)" name="distancia_km" value={form.distancia_km} onChange={handleChange} placeholder="186" icon={<Gauge className="h-4 w-4" />} type="number" required />

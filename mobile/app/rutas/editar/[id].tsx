@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView,
   Platform, Switch, FlatList,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { Spinner } from '@/components/Spinner';
@@ -18,10 +18,10 @@ interface Waypoint { lat: number; lng: number; name?: string; }
 interface SearchResult { label: string; lat: number; lng: number; }
 
 const DIFICULTADES = [
-  { key: 'facil', label: 'Fácil', color: colors.success },
-  { key: 'media', label: 'Media', color: colors.amber },
+  { key: 'facil',      label: 'Fácil',      color: colors.success },
+  { key: 'media',      label: 'Media',      color: colors.amber },
   { key: 'media_alta', label: 'Media-Alta', color: '#F97316' },
-  { key: 'alta', label: 'Alta', color: colors.danger },
+  { key: 'alta',       label: 'Alta',       color: colors.danger },
 ];
 
 async function getRoute(pts: Waypoint[], avoidHighways: boolean) {
@@ -43,9 +43,12 @@ async function getRoute(pts: Waypoint[], avoidHighways: boolean) {
   } catch { return null; }
 }
 
-export default function CrearRutaScreen() {
+export default function EditarRutaScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+
+  const [loadingRuta, setLoadingRuta] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
@@ -53,9 +56,11 @@ export default function CrearRutaScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [mapRegion, setMapRegion] = useState({ latitude: 40.4, longitude: -3.7, latitudeDelta: 8, longitudeDelta: 8 });
   const [regionModal, setRegionModal] = useState(false);
   const [regionQuery, setRegionQuery] = useState('');
   const mountedRef = useRef(true);
+  const geocodeAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => { mountedRef.current = false; }, []);
 
   const [form, setForm] = useState({
@@ -63,6 +68,62 @@ export default function CrearRutaScreen() {
     horas: '', minutos: '', dificultad: 'media',
     descripcion: '', tags: [] as string[],
   });
+
+  // Cargar ruta existente y verificar propiedad
+  useEffect(() => {
+    async function load() {
+      try {
+        const [res, { data: { session } }] = await Promise.all([
+          fetch(`${API_URL}/rutas/${id}`),
+          supabase.auth.getSession(),
+        ]);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (!session || session.user.id !== data.user_id) {
+          router.replace(`/rutas/${id}` as any);
+          return;
+        }
+        setForm({
+          nombre: data.nombre ?? '',
+          region: data.region ?? '',
+          distancia_km: String(data.distancia_km ?? ''),
+          horas: String(Math.floor((data.duracion_min ?? 0) / 60)),
+          minutos: String((data.duracion_min ?? 0) % 60),
+          dificultad: data.dificultad ?? 'media',
+          descripcion: data.descripcion ?? '',
+          tags: data.tags ?? [],
+        });
+        setAvoidHighways(data.avoid_highways ?? false);
+        if (data.waypoints?.length) {
+          const wps: Waypoint[] = data.waypoints.map((wp: { lat: number; lng: number }) => ({ ...wp, name: undefined }));
+          setWaypoints(wps);
+          setMapRegion({ latitude: data.waypoints[0].lat, longitude: data.waypoints[0].lng, latitudeDelta: 3, longitudeDelta: 3 });
+          // Reverse geocode existing waypoints
+          const ctrl = new AbortController();
+          geocodeAbortRef.current = ctrl;
+          (async () => {
+            for (let i = 0; i < data.waypoints.length; i++) {
+              if (ctrl.signal.aborted) break;
+              try {
+                const r = await fetch(`${API_URL}/geocode/reverse?lat=${data.waypoints[i].lat}&lng=${data.waypoints[i].lng}`, { signal: ctrl.signal });
+                const gd = r.ok ? await r.json() : null;
+                if (!ctrl.signal.aborted && mountedRef.current) {
+                  const name = gd?.name ?? `${data.waypoints[i].lat.toFixed(4)}, ${data.waypoints[i].lng.toFixed(4)}`;
+                  setWaypoints(prev => prev.map((wp, idx) => idx === i ? { ...wp, name } : wp));
+                }
+              } catch { break; }
+            }
+          })();
+        }
+        setLoadingRuta(false);
+      } catch {
+        Alert.alert('Error', 'No se pudo cargar la ruta');
+        router.back();
+      }
+    }
+    load();
+    return () => { geocodeAbortRef.current?.abort(); };
+  }, [id]);
 
   // Recalcular ruta al cambiar waypoints o toggle
   useEffect(() => {
@@ -135,12 +196,11 @@ export default function CrearRutaScreen() {
       Alert.alert('Error', 'Rellena los campos obligatorios');
       return;
     }
-    setLoading(true);
+    setSaving(true);
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { Alert.alert('Error', 'Debes iniciar sesión'); setLoading(false); return; }
+    if (!session) { Alert.alert('Error', 'Debes iniciar sesión'); setSaving(false); return; }
     const duracion_min = (parseInt(form.horas || '0') * 60) + parseInt(form.minutos || '0');
-    const { error } = await supabase.from('rutas').insert({
-      user_id: session.user.id,
+    const { error } = await supabase.from('rutas').update({
       nombre: form.nombre,
       region: form.region,
       distancia_km: parseInt(form.distancia_km),
@@ -150,12 +210,18 @@ export default function CrearRutaScreen() {
       tags: form.tags,
       waypoints: waypoints.map(({ lat, lng }) => ({ lat, lng })),
       avoid_highways: avoidHighways,
-    });
-    setLoading(false);
+    }).eq('id', id!).eq('user_id', session.user.id);
+    setSaving(false);
     if (error) { Alert.alert('Error', error.message); return; }
-    Alert.alert('¡Ruta publicada!', 'Tu ruta ya está disponible para la comunidad', [
-      { text: 'OK', onPress: () => router.back() },
-    ]);
+    router.replace(`/rutas/${id}` as any);
+  }
+
+  if (loadingRuta) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
   }
 
   return (
@@ -165,7 +231,7 @@ export default function CrearRutaScreen() {
         <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={18} color={colors.muted} />
         </TouchableOpacity>
-        <Text style={s.title}>PUBLICA <Text style={s.titleOrange}>TU RUTA</Text></Text>
+        <Text style={s.title}>EDITAR <Text style={s.titleOrange}>RUTA</Text></Text>
         <View style={{ width: 32 }} />
       </View>
 
@@ -174,7 +240,7 @@ export default function CrearRutaScreen() {
         <MapView
           style={s.map}
           provider={PROVIDER_DEFAULT}
-          initialRegion={{ latitude: 40.4, longitude: -3.7, latitudeDelta: 8, longitudeDelta: 8 }}
+          region={mapRegion}
           onPress={e => addWaypointWithName(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)}
         >
           {waypoints.map((wp, i) => (
@@ -190,7 +256,7 @@ export default function CrearRutaScreen() {
         </MapView>
         <View style={s.mapHint} pointerEvents="none">
           <Ionicons name="location-outline" size={12} color={colors.muted} />
-          <Text style={s.mapHintText}>Toca el mapa para añadir paradas</Text>
+          <Text style={s.mapHintText}>Toca el mapa para cambiar paradas</Text>
         </View>
       </View>
 
@@ -234,7 +300,7 @@ export default function CrearRutaScreen() {
         )}
       </View>
 
-      {/* Waypoints list */}
+      {/* Waypoints */}
       {waypoints.length > 0 && (
         <View style={s.waypointBar}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
@@ -356,9 +422,14 @@ export default function CrearRutaScreen() {
               multiline
             />
 
-            <TouchableOpacity style={[s.btn, loading && { opacity: 0.5 }]} onPress={handleSubmit} disabled={loading}>
-              {loading ? <ActivityIndicator color={colors.primaryFg} /> : <Text style={s.btnText}>PUBLICAR RUTA</Text>}
-            </TouchableOpacity>
+            <View style={s.btnRow}>
+              <TouchableOpacity style={s.cancelBtn} onPress={() => router.back()}>
+                <Text style={s.cancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.btn, saving && { opacity: 0.5 }]} onPress={handleSubmit} disabled={saving}>
+                {saving ? <ActivityIndicator color={colors.primaryFg} /> : <Text style={s.btnText}>GUARDAR CAMBIOS</Text>}
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -418,11 +489,12 @@ function Field({ value, onChange, placeholder, keyboardType }: {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 52, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   backBtn: { padding: 4 },
   title: { fontSize: 20, fontWeight: '900', color: colors.foreground },
   titleOrange: { color: colors.primary },
-  mapContainer: { height: 260, position: 'relative' },
+  mapContainer: { height: 240, position: 'relative' },
   map: { flex: 1 },
   mapHint: { position: 'absolute', bottom: 10, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.surface1 + 'DD', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: colors.border },
   mapHintText: { color: colors.muted, fontSize: 11 },
@@ -456,8 +528,11 @@ const s = StyleSheet.create({
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.surface3, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 5 },
   tagText: { color: colors.muted, fontSize: 12 },
-  btn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
-  btnText: { color: colors.primaryFg, fontWeight: '800', fontSize: 14, letterSpacing: 1.5 },
+  btnRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  cancelBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 13, alignItems: 'center' },
+  cancelBtnText: { color: colors.muted, fontWeight: '700', fontSize: 13 },
+  btn: { flex: 1, backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 13, alignItems: 'center' },
+  btnText: { color: colors.primaryFg, fontWeight: '800', fontSize: 13, letterSpacing: 1 },
   selector: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface3, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 4 },
   selectorText: { flex: 1, color: colors.foreground, fontSize: 14 },
   modal: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000000AA', justifyContent: 'flex-end' },
