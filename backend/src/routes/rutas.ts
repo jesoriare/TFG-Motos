@@ -12,7 +12,7 @@ router.get('/', async (req, res) => {
     .from('rutas')
     .select(`
       id, nombre, region, distancia_km, duracion_min, dificultad, tags, created_at,
-      profiles (username, avatar_url, verified),
+      profiles!rutas_user_id_fkey (username, avatar_url, verified),
       valoraciones_ruta (puntuacion)
     `)
     .eq('publicada', true)
@@ -41,8 +41,8 @@ router.get('/:id', async (req, res) => {
     .from('rutas')
     .select(`
       *,
-      profiles (username, avatar_url, verified, zona),
-      valoraciones_ruta (puntuacion, comentario, created_at, profiles (username, avatar_url))
+      profiles!rutas_user_id_fkey (username, avatar_url, verified, zona),
+      valoraciones_ruta (puntuacion, comentario, created_at, profiles!valoraciones_ruta_user_id_fkey (username, avatar_url))
     `)
     .eq('id', req.params.id)
     .single();

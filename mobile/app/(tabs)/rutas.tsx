@@ -5,13 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { getRutas } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
 
-const MOCK_RUTAS = [
-  { id: '1', nombre: 'Ruta de las Águilas', region: 'Sierra de Gredos, Ávila', distancia_km: 186, duracion_min: 195, dificultad: 'media_alta', tags: ['montaña', 'curvas', 'paisaje'], rating: 4.9, num_valoraciones: 47, profiles: { username: 'carlos_ducatero' } },
-  { id: '2', nombre: 'Costa Brava Express', region: 'Girona, Cataluña', distancia_km: 312, duracion_min: 255, dificultad: 'media', tags: ['costa', 'mar', 'pinos'], rating: 4.8, num_valoraciones: 89, profiles: { username: 'ana_bmwrider' } },
-  { id: '3', nombre: 'Bosques del Norte', region: 'Asturias', distancia_km: 245, duracion_min: 240, dificultad: 'facil', tags: ['verde', 'lluvia', 'puertos'], rating: 4.6, num_valoraciones: 31, profiles: { username: 'rob_honda' } },
-  { id: '4', nombre: 'Ruta del Mediterráneo', region: 'Valencia - Alicante', distancia_km: 280, duracion_min: 210, dificultad: 'facil', tags: ['costa', 'sol', 'naranjos'], rating: 4.7, num_valoraciones: 62, profiles: { username: 'maria_harley' } },
-  { id: '5', nombre: 'Desfiladero del Cares', region: 'Picos de Europa, Asturias', distancia_km: 158, duracion_min: 180, dificultad: 'alta', tags: ['montaña', 'técnica', 'vértigo'], rating: 5.0, num_valoraciones: 23, profiles: { username: 'javi_ktm' } },
-];
 
 const DIFICULTAD_COLOR: Record<string, string> = {
   facil: colors.success, media: colors.amber,
@@ -40,7 +33,7 @@ export default function RutasScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getRutas().then(data => { setRutas(data?.length ? data : MOCK_RUTAS); setLoading(false); });
+    getRutas().then(data => { setRutas(data ?? []); setLoading(false); });
   }, []);
 
   return (

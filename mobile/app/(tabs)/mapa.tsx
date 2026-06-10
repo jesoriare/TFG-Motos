@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Defs, Pattern, Rect, Line } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
@@ -8,38 +8,55 @@ import { colors, radius } from '@/constants/theme';
 const { width } = Dimensions.get('window');
 const MAP_HEIGHT = width * 0.85;
 
-const MOCK_RIDERS = [
-  { id: 1, name: 'Carlos M.', bike: 'Ducati 950', online: true, x: 35, y: 38 },
-  { id: 2, name: 'Ana R.', bike: 'BMW R1250', online: true, x: 58, y: 52 },
-  { id: 3, name: 'Javi P.', bike: 'KTM 890', online: true, x: 72, y: 28 },
-  { id: 4, name: 'Sara L.', bike: 'Honda CB650', online: false, x: 22, y: 64 },
+const TIPO_ICON: Record<string, string> = {
+  control_gc: 'shield', radar: 'eye', firme_mal_estado: 'warning',
+  accidente: 'warning', obras: 'construct', otro: 'alert-circle',
+};
+const TIPO_COLOR: Record<string, string> = {
+  control_gc: colors.danger, radar: colors.warning ?? '#EAB308',
+  firme_mal_estado: colors.amber, accidente: colors.danger,
+  obras: colors.amber, otro: colors.muted,
+};
+const MAP_POSITIONS = [
+  { x: 35, y: 38 }, { x: 58, y: 52 }, { x: 72, y: 28 },
+  { x: 22, y: 64 }, { x: 48, y: 20 }, { x: 80, y: 45 },
 ];
 
-const POIS = [
-  { id: 1, tipo: 'mirador', label: 'Mirador Picos', x: 45, y: 22, icon: 'eye', color: colors.success },
-  { id: 2, tipo: 'descanso', label: 'Bar La Curva', x: 63, y: 48, icon: 'cafe', color: colors.amber },
-  { id: 3, tipo: 'alerta', label: 'Control GC', x: 30, y: 46, icon: 'warning', color: colors.danger },
-  { id: 4, tipo: 'recarga', label: 'Gasolinera', x: 80, y: 62, icon: 'flash', color: colors.primary },
-];
+interface LiveRider {
+  user_id: string; lat: number; lng: number;
+  profiles: { username: string; online: boolean; motos: { marca_modelo: string }[] };
+}
+interface Incidencia {
+  id: string; tipo: string; via: string; severidad: string;
+}
 
 export default function MapaScreen() {
-  const [liveRiders, setLiveRiders] = useState(MOCK_RIDERS);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [riders, setRiders] = useState<LiveRider[]>([]);
+  const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    // Intentar cargar riders reales del backend
-    supabase.from('ubicaciones').select('user_id, lat, lng, profiles(username, online, motos(marca_modelo))').then(({ data }) => {
-      if (data && data.length > 0) {
-        // Si hay riders reales, mezclarlos con los mock posicionados
-      }
-    });
+  const loadData = useCallback(async () => {
+    const [{ data: ubicData }, { data: incData }] = await Promise.all([
+      supabase.from('ubicaciones').select('user_id, lat, lng, profiles(username, online, motos(marca_modelo))'),
+      supabase.from('incidencias').select('id, tipo, via, severidad').eq('activa', true).gt('expires_at', new Date().toISOString()),
+    ]);
+    if (ubicData) setRiders(ubicData as unknown as LiveRider[]);
+    if (incData) setIncidencias(incData as Incidencia[]);
   }, []);
 
-  const onlineCount = liveRiders.filter(r => r.online).length;
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
+
+  const onlineRiders = riders.filter(r => r.profiles?.online);
 
   return (
     <View style={s.container}>
-      {/* Header */}
       <View style={s.header}>
         <View>
           <Text style={s.title}>MAPA</Text>
@@ -47,14 +64,17 @@ export default function MapaScreen() {
         </View>
         <View style={s.onlineBadge}>
           <View style={s.onlineDot} />
-          <Text style={s.onlineText}>{onlineCount} en línea</Text>
+          <Text style={s.onlineText}>{onlineRiders.length} en línea</Text>
         </View>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
-        {/* Mapa */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 20 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      >
+        {/* Mapa decorativo */}
         <View style={[s.mapContainer, { height: MAP_HEIGHT }]}>
-          {/* Fondo tipo mapa oscuro */}
           <Svg width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
             <Defs>
               <Pattern id="grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -63,7 +83,6 @@ export default function MapaScreen() {
               </Pattern>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#grid)" />
-            {/* Carreteras simuladas */}
             <Path d={`M ${width*0.05} ${MAP_HEIGHT*0.5} Q ${width*0.25} ${MAP_HEIGHT*0.2} ${width*0.55} ${MAP_HEIGHT*0.35} T ${width*0.92} ${MAP_HEIGHT*0.4}`}
               fill="none" stroke="hsl(220,10%,22%)" strokeWidth="5" />
             <Path d={`M ${width*0.05} ${MAP_HEIGHT*0.5} Q ${width*0.25} ${MAP_HEIGHT*0.2} ${width*0.55} ${MAP_HEIGHT*0.35} T ${width*0.92} ${MAP_HEIGHT*0.4}`}
@@ -74,42 +93,45 @@ export default function MapaScreen() {
               fill="none" stroke="hsl(220,10%,20%)" strokeWidth="3" />
           </Svg>
 
-          {/* POIs */}
-          {POIS.map(poi => (
-            <View key={poi.id} style={[s.poi, {
-              left: `${poi.x}%`, top: `${poi.y}%`,
-              backgroundColor: poi.color + '20',
-              borderColor: poi.color + '60',
-            }]}>
-              <Ionicons name={poi.icon as any} size={12} color={poi.color} />
-              <Text style={[s.poiLabel, { color: poi.color }]}>{poi.label}</Text>
-            </View>
-          ))}
-
-          {/* Riders */}
-          {liveRiders.map(rider => (
-            <TouchableOpacity
-              key={rider.id}
-              style={[s.riderPin, { left: `${rider.x}%`, top: `${rider.y}%` }]}
-              onPress={() => setSelected(selected === rider.id ? null : rider.id)}
-            >
-              <View style={[s.riderCircle, {
-                borderColor: rider.online ? colors.primary : colors.muted,
-                backgroundColor: rider.online ? colors.primary + '25' : colors.muted + '20',
+          {/* Incidencias como POIs (posiciones ilustrativas) */}
+          {incidencias.slice(0, 4).map((inc, i) => {
+            const pos = MAP_POSITIONS[i + 2] ?? MAP_POSITIONS[i];
+            const icon = TIPO_ICON[inc.tipo] ?? 'warning';
+            const color = TIPO_COLOR[inc.tipo] ?? colors.danger;
+            return (
+              <View key={inc.id} style={[s.poi, {
+                left: `${pos.x}%`, top: `${pos.y}%`,
+                backgroundColor: color + '20', borderColor: color + '60',
               }]}>
-                <Ionicons name="navigate" size={14} color={rider.online ? colors.primary : colors.muted} />
-                {rider.online && <View style={s.liveIndicator} />}
+                <Ionicons name={icon as any} size={12} color={color} />
+                <Text style={[s.poiLabel, { color }]}>{inc.via.length > 12 ? inc.via.slice(0, 12) + '…' : inc.via}</Text>
               </View>
-              {selected === rider.id && (
-                <View style={s.tooltip}>
-                  <Text style={s.tooltipName}>{rider.name}</Text>
-                  <Text style={s.tooltipBike}>{rider.bike}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
+            );
+          })}
 
-          {/* Controles zoom (decorativos) */}
+          {/* Moteros online (posiciones ilustrativas) */}
+          {onlineRiders.slice(0, 4).map((rider, i) => {
+            const pos = MAP_POSITIONS[i];
+            const uid = rider.user_id;
+            return (
+              <TouchableOpacity key={uid}
+                style={[s.riderPin, { left: `${pos.x}%`, top: `${pos.y}%` }]}
+                onPress={() => setSelected(selected === uid ? null : uid)}
+              >
+                <View style={[s.riderCircle, { borderColor: colors.primary, backgroundColor: colors.primary + '25' }]}>
+                  <Ionicons name="navigate" size={14} color={colors.primary} />
+                  <View style={s.liveIndicator} />
+                </View>
+                {selected === uid && (
+                  <View style={s.tooltip}>
+                    <Text style={s.tooltipName}>@{rider.profiles?.username}</Text>
+                    <Text style={s.tooltipBike}>{rider.profiles?.motos?.[0]?.marca_modelo ?? 'Sin moto'}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+
           <View style={s.zoomControls}>
             {['+', '−'].map(c => (
               <TouchableOpacity key={c} style={s.zoomBtn}>
@@ -118,7 +140,6 @@ export default function MapaScreen() {
             ))}
           </View>
 
-          {/* Leyenda */}
           <View style={s.legend}>
             <Text style={s.legendTitle}>LEYENDA</Text>
             <View style={s.legendItem}><Ionicons name="navigate" size={11} color={colors.primary} /><Text style={[s.legendText, { color: colors.primary }]}>Moteros online</Text></View>
@@ -128,37 +149,51 @@ export default function MapaScreen() {
           </View>
         </View>
 
-        {/* Panel grupo activo */}
         <View style={s.panel}>
+          {/* Grupo activo / moteros online */}
           <View style={s.panelCard}>
-            <Text style={s.panelTitle}>GRUPO ACTIVO</Text>
-            {liveRiders.map(r => (
-              <View key={r.id} style={s.riderRow}>
-                <View style={[s.dot, { backgroundColor: r.online ? colors.success : colors.muted }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.riderName}>{r.name}</Text>
-                  <Text style={s.riderBike}>{r.bike}</Text>
+            <Text style={s.panelTitle}>MOTEROS EN LÍNEA ({onlineRiders.length})</Text>
+            {riders.length === 0 ? (
+              <Text style={s.empty}>Cargando...</Text>
+            ) : onlineRiders.length === 0 ? (
+              <Text style={s.empty}>Ningún motero conectado ahora</Text>
+            ) : (
+              onlineRiders.slice(0, 5).map(r => (
+                <View key={r.user_id} style={s.riderRow}>
+                  <View style={[s.dot, { backgroundColor: colors.success }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.riderName}>@{r.profiles?.username}</Text>
+                    <Text style={s.riderBike}>{r.profiles?.motos?.[0]?.marca_modelo ?? 'Sin moto'}</Text>
+                  </View>
+                  <Text style={s.liveBadge}>● Live</Text>
                 </View>
-                {r.online && <Text style={s.liveBadge}>● Live</Text>}
-              </View>
-            ))}
+              ))
+            )}
           </View>
 
-          <View style={s.panelCard}>
-            <Text style={s.panelTitle}>RUTA ACTUAL</Text>
-            <Text style={s.routeKm}>247 km</Text>
-            <Text style={s.routeName}>Madrid → Cuenca circular</Text>
-            {[['Duración est.', '3h 40min'], ['Paradas', '3 planificadas'], ['Dificultad', 'Media']].map(([k, v]) => (
-              <View key={k} style={s.routeRow}>
-                <Text style={s.routeKey}>{k}</Text>
-                <Text style={[s.routeVal, k === 'Dificultad' && { color: colors.primary }]}>{v}</Text>
-              </View>
-            ))}
-          </View>
+          {/* Incidencias activas */}
+          {incidencias.length > 0 && (
+            <View style={s.panelCard}>
+              <Text style={s.panelTitle}>ALERTAS ACTIVAS ({incidencias.length})</Text>
+              {incidencias.slice(0, 3).map(inc => {
+                const icon = TIPO_ICON[inc.tipo] ?? 'warning';
+                const color = TIPO_COLOR[inc.tipo] ?? colors.danger;
+                return (
+                  <View key={inc.id} style={s.riderRow}>
+                    <Ionicons name={icon as any} size={14} color={color} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.riderName}>{inc.tipo.replace(/_/g, ' ')}</Text>
+                      <Text style={s.riderBike}>{inc.via}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           <TouchableOpacity style={s.joinBtn}>
             <Ionicons name="people" size={16} color={colors.primaryFg} />
-            <Text style={s.joinBtnText}>UNIRME A ESTA RUTA</Text>
+            <Text style={s.joinBtnText}>UNIRME A UNA RUTA</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -180,7 +215,7 @@ const s = StyleSheet.create({
   riderPin: { position: 'absolute', transform: [{ translateX: -18 }, { translateY: -18 }], zIndex: 10 },
   riderCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   liveIndicator: { position: 'absolute', top: -2, right: -2, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success, borderWidth: 2, borderColor: colors.surface2 },
-  tooltip: { position: 'absolute', top: 40, left: '50%', transform: [{ translateX: -50 }], backgroundColor: colors.card ?? colors.surface1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 8, paddingVertical: 6, minWidth: 100, zIndex: 20 },
+  tooltip: { position: 'absolute', top: 40, left: '50%', transform: [{ translateX: -50 }], backgroundColor: colors.surface1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 8, paddingVertical: 6, minWidth: 100, zIndex: 20 },
   tooltipName: { color: colors.foreground, fontWeight: '700', fontSize: 11 },
   tooltipBike: { color: colors.muted, fontSize: 10 },
   zoomControls: { position: 'absolute', top: 12, right: 12, gap: 4 },
@@ -198,11 +233,7 @@ const s = StyleSheet.create({
   riderName: { color: colors.foreground, fontWeight: '700', fontSize: 13 },
   riderBike: { color: colors.muted, fontSize: 11 },
   liveBadge: { color: colors.success, fontSize: 11, fontWeight: '700' },
-  routeKm: { fontSize: 28, fontWeight: '900', color: colors.foreground, fontFamily: 'System' },
-  routeName: { color: colors.muted, fontSize: 12, marginTop: -4, marginBottom: 6 },
-  routeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  routeKey: { color: colors.muted, fontSize: 12 },
-  routeVal: { color: colors.foreground, fontWeight: '600', fontSize: 12 },
+  empty: { color: colors.muted, fontSize: 12, textAlign: 'center', paddingVertical: 8 },
   joinBtn: { backgroundColor: colors.primary, borderRadius: radius.lg, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   joinBtnText: { color: colors.primaryFg, fontWeight: '800', fontSize: 13, letterSpacing: 1 },
 });

@@ -7,14 +7,6 @@ import { colors, radius } from '@/constants/theme';
 
 const TIPOS = ['Todos', 'Sport', 'Naked', 'Adventure', 'Custom', 'Touring', 'Enduro'];
 
-const MOCK_RIDERS = [
-  { id: '1', nombre: 'Carlos', apellidos: 'Mendoza', username: 'carlos_ducatero', avatar_url: null, zona: 'Madrid Norte', verified: true, online: true, motos: [{ marca_modelo: 'Ducati Streetfighter 950', cilindrada: 950, tipo: 'naked' }] },
-  { id: '2', nombre: 'Ana', apellidos: 'Rodríguez', username: 'ana_bmwrider', avatar_url: null, zona: 'Madrid Centro', verified: true, online: true, motos: [{ marca_modelo: 'BMW R 1250 GS', cilindrada: 1254, tipo: 'adventure' }] },
-  { id: '3', nombre: 'Javier', apellidos: 'Prados', username: 'javi_ktm', avatar_url: null, zona: 'Getafe', verified: false, online: true, motos: [{ marca_modelo: 'KTM 890 Duke R', cilindrada: 890, tipo: 'naked' }] },
-  { id: '4', nombre: 'María', apellidos: 'López', username: 'maria_harley', avatar_url: null, zona: 'Alcalá de Henares', verified: true, online: false, motos: [{ marca_modelo: 'Harley-Davidson Iron 883', cilindrada: 883, tipo: 'custom' }] },
-  { id: '5', nombre: 'Roberto', apellidos: 'Sanz', username: 'rob_honda', avatar_url: null, zona: 'Pozuelo', verified: true, online: true, motos: [{ marca_modelo: 'Honda Africa Twin 1100', cilindrada: 1100, tipo: 'adventure' }] },
-  { id: '6', nombre: 'Lucía', apellidos: 'García', username: 'luci_kawasaki', avatar_url: null, zona: 'Leganés', verified: false, online: false, motos: [{ marca_modelo: 'Kawasaki Z900', cilindrada: 900, tipo: 'naked' }] },
-];
 
 interface Rider {
   id: string; nombre: string; apellidos: string; username: string;
@@ -32,7 +24,7 @@ export default function MoteroScreen() {
   const fetch = useCallback(async (q: string, t: string) => {
     setLoading(true);
     const data = await getRiders(q, t);
-    setRiders(data?.length ? data : MOCK_RIDERS);
+    setRiders(data ?? []);
     setLoading(false);
   }, []);
 
