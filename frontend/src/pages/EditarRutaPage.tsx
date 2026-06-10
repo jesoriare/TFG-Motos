@@ -108,6 +108,7 @@ export default function EditarRutaPage() {
           setMapCenter([data.waypoints[0].lat, data.waypoints[0].lng]);
           setMapZoom(8);
         }
+        setAvoidHighways(data.avoid_highways ?? false);
         setLoadingRuta(false);
       })
       .catch(() => { setNotFound(true); setLoadingRuta(false); });
@@ -207,6 +208,7 @@ export default function EditarRutaPage() {
       descripcion: form.descripcion || null,
       tags: form.tags,
       waypoints,
+      avoid_highways: avoidHighways,
     }).eq("id", id!).eq("user_id", session.user.id);
     setLoading(false);
     if (err) { setError(err.message); return; }

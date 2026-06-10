@@ -22,6 +22,7 @@ interface Ruta {
   distancia_km: number; duracion_min: number;
   dificultad: string; descripcion: string | null;
   tags: string[]; waypoints: Waypoint[];
+  avoid_highways: boolean;
   publicada: boolean; created_at: string;
   profiles: { username: string; avatar_url: string | null; verified: boolean; zona: string | null };
   valoraciones_ruta: Valoracion[];
@@ -47,18 +48,17 @@ async function reverseGeocode(lat: number, lng: number, signal: AbortSignal): Pr
   }
 }
 
-async function getOsrmRoute(pts: Waypoint[]) {
+async function getRouteCoords(pts: Waypoint[], avoidHighways: boolean): Promise<[number, number][] | null> {
   if (pts.length < 2) return null;
   try {
-    const coords = pts.map(p => `${p.lng},${p.lat}`).join(';');
-    const res = await fetch(
-      `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
-    );
+    const res = await fetch(`${API_URL}/geocode/route`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ waypoints: pts.map(p => ({ lat: p.lat, lon: p.lng })), avoidHighways }),
+    });
     if (!res.ok) return null;
-    const data = await res.json();
-    const route = data.routes?.[0];
-    if (!route) return null;
-    return route.geometry.coordinates.map(([lng, lat]: number[]) => [lat, lng] as [number, number]);
+    const data = await res.json() as { coords: [number, number][] } | null;
+    return data?.coords ?? null;
   } catch { return null; }
 }
 
@@ -101,7 +101,7 @@ export default function RutaDetallePage() {
     const controller = new AbortController();
     const { signal } = controller;
 
-    getOsrmRoute(ruta.waypoints).then(coords => {
+    getRouteCoords(ruta.waypoints, ruta.avoid_highways ?? false).then(coords => {
       if (!signal.aborted && coords) setRouteCoords(coords);
     });
 

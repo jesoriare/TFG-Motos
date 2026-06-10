@@ -161,6 +161,7 @@ export default function CrearRutaPage() {
       descripcion: form.descripcion || null,
       tags: form.tags,
       waypoints: waypoints.map(({ lat, lng }) => ({ lat, lng })),
+      avoid_highways: avoidHighways,
     });
     setLoading(false);
     if (err) { setError(err.message); return; }
