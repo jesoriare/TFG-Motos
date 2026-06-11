@@ -63,6 +63,7 @@ create table rutas (
   dificultad      dificultad_ruta not null default 'media',
   descripcion     text,
   tags            text[] default '{}',
+  waypoints       jsonb not null default '[]',
   publicada       boolean not null default true,
   created_at      timestamptz not null default now()
 );

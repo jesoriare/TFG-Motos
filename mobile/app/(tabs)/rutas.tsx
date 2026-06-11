@@ -1,17 +1,14 @@
-import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { useState, useCallback } from 'react';
+import {
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  ActivityIndicator, RefreshControl, TextInput, ScrollView, Modal,
+} from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getRutas } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
-
-const MOCK_RUTAS = [
-  { id: '1', nombre: 'Ruta de las Águilas', region: 'Sierra de Gredos, Ávila', distancia_km: 186, duracion_min: 195, dificultad: 'media_alta', tags: ['montaña', 'curvas', 'paisaje'], rating: 4.9, num_valoraciones: 47, profiles: { username: 'carlos_ducatero' } },
-  { id: '2', nombre: 'Costa Brava Express', region: 'Girona, Cataluña', distancia_km: 312, duracion_min: 255, dificultad: 'media', tags: ['costa', 'mar', 'pinos'], rating: 4.8, num_valoraciones: 89, profiles: { username: 'ana_bmwrider' } },
-  { id: '3', nombre: 'Bosques del Norte', region: 'Asturias', distancia_km: 245, duracion_min: 240, dificultad: 'facil', tags: ['verde', 'lluvia', 'puertos'], rating: 4.6, num_valoraciones: 31, profiles: { username: 'rob_honda' } },
-  { id: '4', nombre: 'Ruta del Mediterráneo', region: 'Valencia - Alicante', distancia_km: 280, duracion_min: 210, dificultad: 'facil', tags: ['costa', 'sol', 'naranjos'], rating: 4.7, num_valoraciones: 62, profiles: { username: 'maria_harley' } },
-  { id: '5', nombre: 'Desfiladero del Cares', region: 'Picos de Europa, Asturias', distancia_km: 158, duracion_min: 180, dificultad: 'alta', tags: ['montaña', 'técnica', 'vértigo'], rating: 5.0, num_valoraciones: 23, profiles: { username: 'javi_ktm' } },
-];
+import { CIUDADES_ESPANA } from '@/data/ciudades-espana';
 
 const DIFICULTAD_COLOR: Record<string, string> = {
   facil: colors.success, media: colors.amber,
@@ -38,10 +35,41 @@ export default function RutasScreen() {
   const router = useRouter();
   const [rutas, setRutas] = useState<Ruta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [regionFilter, setRegionFilter] = useState('');
+  const [regionModal, setRegionModal] = useState(false);
+  const [regionQuery, setRegionQuery] = useState('');
 
-  useEffect(() => {
-    getRutas().then(data => { setRutas(data?.length ? data : MOCK_RUTAS); setLoading(false); });
-  }, []);
+  async function fetchRutas(region = regionFilter) {
+    const data = await getRutas(region ? { region } : {});
+    setRutas(data ?? []);
+    setLoading(false);
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await fetchRutas();
+    setRefreshing(false);
+  }
+
+  useFocusEffect(useCallback(() => {
+    setLoading(true);
+    fetchRutas();
+  }, [regionFilter]));
+
+  function applyRegion(ciudad: string) {
+    setRegionFilter(ciudad);
+    setRegionModal(false);
+    setRegionQuery('');
+    setLoading(true);
+    fetchRutas(ciudad);
+  }
+
+  function clearRegion() {
+    setRegionFilter('');
+    setLoading(true);
+    fetchRutas('');
+  }
 
   return (
     <View style={s.container}>
@@ -56,18 +84,54 @@ export default function RutasScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Filtro región */}
+      <View style={s.filterRow}>
+        <TouchableOpacity
+          style={[s.filterBtn, regionFilter && s.filterBtnActive]}
+          onPress={() => { setRegionQuery(''); setRegionModal(true); }}
+        >
+          <Ionicons name="location-outline" size={14} color={regionFilter ? colors.primary : colors.muted} />
+          <Text style={[s.filterBtnText, regionFilter && { color: colors.primary }]} numberOfLines={1}>
+            {regionFilter || 'Filtrar por región...'}
+          </Text>
+          {regionFilter
+            ? <TouchableOpacity onPress={clearRegion} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={16} color={colors.primary} />
+              </TouchableOpacity>
+            : <Ionicons name="chevron-down" size={14} color={colors.muted} />
+          }
+        </TouchableOpacity>
+        {regionFilter && !loading && (
+          <Text style={s.filterCount}>{rutas.length} {rutas.length === 1 ? 'ruta' : 'rutas'}</Text>
+        )}
+      </View>
+
       {loading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={rutas}
           keyExtractor={r => r.id}
-          contentContainerStyle={{ padding: 20, paddingTop: 0, paddingBottom: 100, gap: 12 }}
-          ListEmptyComponent={<Text style={s.empty}>No hay rutas publicadas aún</Text>}
+          contentContainerStyle={{ padding: 20, paddingTop: 12, paddingBottom: 100, gap: 12 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+          ListEmptyComponent={
+            <View style={s.emptyContainer}>
+              <Ionicons name="map-outline" size={48} color={colors.muted + '40'} />
+              <Text style={s.emptyTitle}>
+                {regionFilter ? `Sin rutas en "${regionFilter}"` : 'No hay rutas publicadas'}
+              </Text>
+              {regionFilter && (
+                <TouchableOpacity style={s.clearFilterBtn} onPress={clearRegion}>
+                  <Ionicons name="close" size={14} color={colors.muted} />
+                  <Text style={s.clearFilterText}>Quitar filtro</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          }
           renderItem={({ item: r }) => {
             const difColor = DIFICULTAD_COLOR[r.dificultad] ?? colors.muted;
             return (
-              <View style={s.card}>
+              <TouchableOpacity style={s.card} onPress={() => router.push(`/rutas/${r.id}` as any)} activeOpacity={0.8}>
                 <View style={s.cardTop}>
                   <View style={{ flex: 1 }}>
                     <Text style={s.rutaNombre}>{r.nombre}</Text>
@@ -109,22 +173,70 @@ export default function RutasScreen() {
                 )}
 
                 <Text style={s.autor}>por @{r.profiles?.username ?? 'anónimo'}</Text>
-              </View>
+              </TouchableOpacity>
             );
           }}
         />
       )}
+
+      {/* Modal selector región */}
+      <Modal visible={regionModal} transparent animationType="fade" onRequestClose={() => { setRegionModal(false); setRegionQuery(''); }}>
+        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => { setRegionModal(false); setRegionQuery(''); }}>
+          <TouchableOpacity style={s.modalCard} activeOpacity={1} onPress={() => {}}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Filtrar por región</Text>
+              <TouchableOpacity onPress={() => { setRegionModal(false); setRegionQuery(''); }}>
+                <Ionicons name="close" size={22} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+            <View style={s.modalSearch}>
+              <Ionicons name="search" size={16} color={colors.muted} />
+              <TextInput
+                style={s.modalInput}
+                value={regionQuery}
+                onChangeText={setRegionQuery}
+                placeholder="Buscar ciudad..."
+                placeholderTextColor={colors.muted}
+                autoFocus
+              />
+            </View>
+            <ScrollView style={{ maxHeight: 380 }} keyboardShouldPersistTaps="handled">
+              {regionFilter && (
+                <TouchableOpacity style={s.ciudadItem} onPress={clearRegion}>
+                  <Ionicons name="close-circle-outline" size={16} color={colors.danger} style={{ marginRight: 8 }} />
+                  <Text style={{ color: colors.danger, fontSize: 14 }}>Quitar filtro</Text>
+                </TouchableOpacity>
+              )}
+              {CIUDADES_ESPANA.filter(c => c.toLowerCase().includes(regionQuery.toLowerCase())).slice(0, 60).map(ciudad => (
+                <TouchableOpacity
+                  key={ciudad}
+                  style={[s.ciudadItem, regionFilter === ciudad && s.ciudadItemActive]}
+                  onPress={() => applyRegion(ciudad)}
+                >
+                  {regionFilter === ciudad && <Ionicons name="checkmark" size={16} color={colors.primary} style={{ marginRight: 8 }} />}
+                  <Text style={[s.ciudadText, regionFilter === ciudad && { color: colors.primary }]}>{ciudad}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12 },
   title: { fontSize: 36, fontWeight: '900', color: colors.foreground },
   sub: { color: colors.primary, fontSize: 13, fontWeight: '700' },
   crearBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 8 },
   crearBtnText: { color: colors.primaryFg, fontWeight: '800', fontSize: 13 },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingBottom: 12 },
+  filterBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10 },
+  filterBtnActive: { borderColor: colors.primary + '60', backgroundColor: colors.primary + '10' },
+  filterBtnText: { flex: 1, color: colors.muted, fontSize: 13 },
+  filterCount: { color: colors.muted, fontSize: 12, flexShrink: 0 },
   card: { backgroundColor: colors.surface1, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 10 },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   rutaNombre: { color: colors.foreground, fontWeight: '800', fontSize: 16 },
@@ -138,5 +250,17 @@ const s = StyleSheet.create({
   tag: { backgroundColor: colors.surface3, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 8, paddingVertical: 3 },
   tagText: { color: colors.muted, fontSize: 11 },
   autor: { color: colors.muted, fontSize: 11, textAlign: 'right' },
-  empty: { color: colors.muted, textAlign: 'center', marginTop: 40 },
+  emptyContainer: { alignItems: 'center', marginTop: 48, gap: 8 },
+  emptyTitle: { color: colors.foreground, fontWeight: '700', fontSize: 15, textAlign: 'center' },
+  clearFilterBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 8 },
+  clearFilterText: { color: colors.muted, fontSize: 13 },
+  modalOverlay: { flex: 1, backgroundColor: '#000000AA', paddingTop: 100, paddingHorizontal: 0 },
+  modalCard: { backgroundColor: colors.surface1, flex: 1, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: 20 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  modalTitle: { color: colors.foreground, fontWeight: '700', fontSize: 16 },
+  modalSearch: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface3, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
+  modalInput: { flex: 1, color: colors.foreground, fontSize: 14 },
+  ciudadItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: colors.border + '40' },
+  ciudadItemActive: { backgroundColor: colors.primary + '10' },
+  ciudadText: { color: colors.foreground, fontSize: 14 },
 });

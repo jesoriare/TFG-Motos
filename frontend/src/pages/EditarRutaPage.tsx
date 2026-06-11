@@ -1,7 +1,8 @@
 import 'leaflet/dist/leaflet.css';
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { MapPin, ArrowLeft, Route, MapPinned, Gauge, Clock, Mountain, Tag, X, Trash2, Search, ChevronDown } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import { MapPin, ArrowLeft, Route, MapPinned, Gauge, Clock, Mountain, Tag, X, Trash2, AlertCircle, Search, ChevronDown } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { supabase } from "@/lib/supabase";
@@ -9,7 +10,18 @@ import { CIUDADES_ESPANA } from "@/data/ciudades-espana";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
 
-interface Waypoint { lat: number; lng: number; name?: string; }
+interface Waypoint { lat: number; lng: number; }
+
+async function reverseGeocode(lat: number, lng: number, signal: AbortSignal): Promise<string> {
+  try {
+    const res = await fetch(`${API_URL}/geocode/reverse?lat=${lat}&lng=${lng}`, { signal });
+    if (!res.ok) return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const data = await res.json();
+    return data.name ?? `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  } catch {
+    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }
+}
 
 function markerIcon(label: string) {
   return L.divIcon({
@@ -25,7 +37,6 @@ function MapClickHandler({ onAdd }: { onAdd: (lat: number, lng: number) => void 
   return null;
 }
 
-
 async function getOsrmRoute(pts: Waypoint[], avoidHighways = false) {
   if (pts.length < 2) return null;
   try {
@@ -35,7 +46,8 @@ async function getOsrmRoute(pts: Waypoint[], avoidHighways = false) {
       body: JSON.stringify({ waypoints: pts.map(p => ({ lat: p.lat, lon: p.lng })), avoidHighways }),
     });
     if (!res.ok) return null;
-    return await res.json() as { coords: [number, number][]; distanceKm: number; durationMin: number } | null;
+    const data = await res.json();
+    return data as { coords: [number, number][]; distanceKm: number; durationMin: number } | null;
   } catch { return null; }
 }
 
@@ -46,32 +58,67 @@ const DIFICULTADES = [
   { key: "alta", label: "Alta" },
 ];
 
-interface SearchResult { label: string; lat: number; lng: number; }
-
-export default function CrearRutaPage() {
+export default function EditarRutaPage() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [loadingRuta, setLoadingRuta] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([40.4, -3.7]);
+  const [mapZoom, setMapZoom] = useState(6);
+  const [waypointNames, setWaypointNames] = useState<string[]>([]);
   const [avoidHighways, setAvoidHighways] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<{ label: string; lat: number; lng: number }[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<HTMLDivElement>(null);
   const [regionQuery, setRegionQuery] = useState("");
   const [regionOpen, setRegionOpen] = useState(false);
-  const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
   const [form, setForm] = useState({
     nombre: "", region: "", distancia_km: "",
     horas: "", minutos: "", dificultad: "media",
     descripcion: "", tags: [] as string[],
   });
 
+  // Cargar ruta existente
+  useEffect(() => {
+    fetch(`${API_URL}/rutas/${id}`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(async data => {
+        // Verificar que el usuario actual es el autor
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || session.user.id !== data.user_id) {
+          navigate(`/rutas/${id}`);
+          return;
+        }
+        setForm({
+          nombre: data.nombre ?? "",
+          region: data.region ?? "",
+          distancia_km: String(data.distancia_km ?? ""),
+          horas: String(Math.floor((data.duracion_min ?? 0) / 60)),
+          minutos: String((data.duracion_min ?? 0) % 60),
+          dificultad: data.dificultad ?? "media",
+          descripcion: data.descripcion ?? "",
+          tags: data.tags ?? [],
+        });
+        if (data.waypoints?.length) {
+          setWaypoints(data.waypoints);
+          setMapCenter([data.waypoints[0].lat, data.waypoints[0].lng]);
+          setMapZoom(8);
+        }
+        setAvoidHighways(data.avoid_highways ?? false);
+        setLoadingRuta(false);
+      })
+      .catch(() => { setNotFound(true); setLoadingRuta(false); });
+  }, [id, navigate]);
+
+  // Recalcular ruta OSRM al cambiar waypoints o toggle autopistas
   useEffect(() => {
     if (waypoints.length >= 2) {
       getOsrmRoute(waypoints, avoidHighways).then(route => {
@@ -90,20 +137,40 @@ export default function CrearRutaPage() {
     }
   }, [waypoints, avoidHighways]);
 
-  // Búsqueda de lugares con debounce
+  // Geocodificación con cleanup (separado para no re-geocodificar al toggle)
+  useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+    setWaypointNames([]);
+
+    (async () => {
+      const names: string[] = [];
+      for (const wp of waypoints) {
+        if (signal.aborted) break;
+        try {
+          names.push(await reverseGeocode(wp.lat, wp.lng, signal));
+          if (!signal.aborted) setWaypointNames([...names]);
+        } catch {
+          break;
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [waypoints]);
+
   useEffect(() => {
     if (searchQuery.trim().length < 2) { setSearchResults([]); setSearchOpen(false); return; }
     setSearchLoading(true);
     const t = setTimeout(() => {
       fetch(`${API_URL}/geocode/search?q=${encodeURIComponent(searchQuery)}`)
         .then(r => r.ok ? r.json() : [])
-        .then((data: SearchResult[]) => { setSearchResults(data); setSearchOpen(data.length > 0); })
+        .then((data: { label: string; lat: number; lng: number }[]) => { setSearchResults(data); setSearchOpen(data.length > 0); })
         .finally(() => setSearchLoading(false));
     }, 350);
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  // Cerrar dropdown al hacer click fuera
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
@@ -113,29 +180,10 @@ export default function CrearRutaPage() {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  function pickSearchResult(result: SearchResult) {
-    addWaypointWithName(result.lat, result.lng, result.label);
-    setSearchQuery("");
-    setSearchResults([]);
-    setSearchOpen(false);
-  }
-
-  function addWaypointWithName(lat: number, lng: number, name?: string) {
-    const idx = waypoints.length;
-    setWaypoints(prev => [...prev, { lat, lng, name }]);
-    if (!name) {
-      fetch(`${API_URL}/geocode/reverse?lat=${lat}&lng=${lng}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (!mountedRef.current || !data) return;
-          setWaypoints(prev => prev.map((wp, i) => i === idx ? { ...wp, name: data.name } : wp));
-        })
-        .catch(() => {});
-    }
-  }
-
-  function removeWaypoint(i: number) {
-    setWaypoints(prev => prev.filter((_, idx) => idx !== i));
+  function pickSearchResult(result: { label: string; lat: number; lng: number }) {
+    setWaypoints(prev => [...prev, { lat: result.lat, lng: result.lng }]);
+    setWaypointNames(prev => [...prev, result.label]);
+    setSearchQuery(""); setSearchResults([]); setSearchOpen(false);
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -156,8 +204,7 @@ export default function CrearRutaPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { navigate("/entrar"); return; }
     const duracion_min = (parseInt(form.horas || "0") * 60) + parseInt(form.minutos || "0");
-    const { error: err } = await supabase.from("rutas").insert({
-      user_id: session.user.id,
+    const { error: err } = await supabase.from("rutas").update({
       nombre: form.nombre,
       region: form.region,
       distancia_km: parseInt(form.distancia_km),
@@ -165,12 +212,30 @@ export default function CrearRutaPage() {
       dificultad: form.dificultad,
       descripcion: form.descripcion || null,
       tags: form.tags,
-      waypoints: waypoints.map(({ lat, lng }) => ({ lat, lng })),
+      waypoints,
       avoid_highways: avoidHighways,
-    });
+    }).eq("id", id!).eq("user_id", session.user.id);
     setLoading(false);
     if (err) { setError(err.message); return; }
-    navigate("/");
+    navigate(`/rutas/${id}`);
+  }
+
+  if (loadingRuta) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <AlertCircle className="h-12 w-12 text-muted-foreground/40" />
+        <p className="text-foreground font-bold">Ruta no encontrada</p>
+        <button onClick={() => navigate("/")} className="text-sm text-primary hover:underline">Volver al inicio</button>
+      </div>
+    );
   }
 
   return (
@@ -178,7 +243,7 @@ export default function CrearRutaPage() {
       {/* Header */}
       <header className="border-b border-border/50 bg-background/80 backdrop-blur-md px-4 py-3 flex-shrink-0">
         <div className="mx-auto flex max-w-full items-center justify-between">
-          <button onClick={() => navigate("/")} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => navigate(`/rutas/${id}`)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
             <span className="text-sm font-semibold">Volver</span>
           </button>
@@ -197,33 +262,34 @@ export default function CrearRutaPage() {
       {/* Main: map left + form right */}
       <div className="flex flex-col lg:flex-row flex-1 min-h-0">
 
-        {/* Map panel */}
+        {/* Mapa */}
         <div className="lg:flex-1 h-[350px] lg:h-auto relative">
-          <MapContainer
-            center={[40.4, -3.7]}
-            zoom={6}
-            style={{ height: '100%', width: '100%' }}
-          >
+          <MapContainer center={mapCenter} zoom={mapZoom} style={{ height: '100%', width: '100%' }}>
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a>'
             />
-            <MapClickHandler onAdd={addWaypointWithName} />
+            <MapClickHandler onAdd={(lat, lng) => {
+              const idx = waypoints.length;
+              setWaypoints(prev => [...prev, { lat, lng }]);
+              setWaypointNames(prev => [...prev, '']);
+              fetch(`${API_URL}/geocode/reverse?lat=${lat}&lng=${lng}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                  if (!data) return;
+                  setWaypointNames(prev => prev.map((n, i) => i === idx ? data.name : n));
+                })
+                .catch(() => {});
+            }} />
             {waypoints.map((wp, i) => (
-              <Marker
-                key={i}
-                position={[wp.lat, wp.lng]}
-                icon={markerIcon(String.fromCharCode(65 + i))}
-              />
+              <Marker key={i} position={[wp.lat, wp.lng]} icon={markerIcon(String.fromCharCode(65 + i))} />
             ))}
             {routeCoords.length > 0 && (
               <Polyline positions={routeCoords} color="#F97316" weight={4} opacity={0.85} />
             )}
           </MapContainer>
-
-          {/* Hint overlay */}
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[1000] bg-background/80 backdrop-blur-sm text-xs text-muted-foreground px-3 py-1.5 rounded-full border border-border/50 pointer-events-none">
-            Haz clic en el mapa para añadir paradas
+            Haz clic en el mapa para añadir o cambiar paradas
           </div>
         </div>
 
@@ -232,11 +298,11 @@ export default function CrearRutaPage() {
           <div className="p-6">
             <div className="mb-6">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 mb-3">
-                <span className="h-2 w-2 rounded-full bg-primary animate-pulse-orange" />
-                <span className="text-xs font-bold uppercase tracking-widest text-primary">Nueva ruta</span>
+                <span className="h-2 w-2 rounded-full bg-primary" />
+                <span className="text-xs font-bold uppercase tracking-widest text-primary">Editar ruta</span>
               </div>
               <h1 className="font-display text-3xl text-foreground leading-none">
-                PUBLICA <span className="text-gradient-orange">TU RUTA</span>
+                EDITA <span className="text-gradient-orange">TU RUTA</span>
               </h1>
             </div>
 
@@ -283,7 +349,7 @@ export default function CrearRutaPage() {
               )}
             </div>
 
-            {/* Waypoints list */}
+            {/* Waypoints actuales */}
             {waypoints.length > 0 && (
               <div className="mb-5 card-surface rounded-xl p-3 space-y-1.5">
                 <div className="flex items-center justify-between mb-2">
@@ -294,14 +360,15 @@ export default function CrearRutaPage() {
                 </div>
                 {waypoints.map((wp, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
-                    <div className="h-5 w-5 flex-shrink-0 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-[10px]">
+                    <div className="h-5 w-5 shrink-0 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-[10px]">
                       {String.fromCharCode(65 + i)}
                     </div>
-                    {wp.name
-                      ? <span className="text-foreground font-medium flex-1">{wp.name}</span>
-                      : <span className="text-muted-foreground italic flex-1">Cargando...</span>
-                    }
-                    <button onClick={() => removeWaypoint(i)} className="text-muted-foreground hover:text-danger transition-colors">
+                    {waypointNames[i] ? (
+                      <span className="text-foreground font-medium flex-1">{waypointNames[i]}</span>
+                    ) : (
+                      <span className="text-muted-foreground italic flex-1">Cargando...</span>
+                    )}
+                    <button onClick={() => setWaypoints(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-danger transition-colors">
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -423,10 +490,16 @@ export default function CrearRutaPage() {
 
               {error && <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</p>}
 
-              <button type="submit" disabled={loading}
-                className="w-full rounded-md bg-primary py-3 text-sm font-bold uppercase tracking-wider text-primary-foreground transition-all hover:opacity-90 hover:shadow-[0_0_30px_hsl(25_100%_52%/0.5)] disabled:opacity-50 disabled:cursor-not-allowed">
-                {loading ? "Publicando..." : "Publicar ruta"}
-              </button>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => navigate(`/rutas/${id}`)}
+                  className="flex-1 rounded-md border border-border py-3 text-sm font-bold text-muted-foreground hover:border-primary/50 hover:text-primary transition-all">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={loading}
+                  className="flex-1 rounded-md bg-primary py-3 text-sm font-bold uppercase tracking-wider text-primary-foreground transition-all hover:opacity-90 hover:shadow-[0_0_30px_hsl(25_100%_52%/0.5)] disabled:opacity-50 disabled:cursor-not-allowed">
+                  {loading ? "Guardando..." : "Guardar cambios"}
+                </button>
+              </div>
             </form>
           </div>
         </div>
