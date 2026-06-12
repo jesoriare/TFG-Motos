@@ -113,3 +113,72 @@ export async function getAmigos(username: string, token: string) {
   });
   return { status: res.status, data: res.ok ? await res.json() : null };
 }
+
+export async function crearOAbrirChat(username: string, token: string): Promise<string | null> {
+  const res = await fetch(`${API_URL}/chat/${username}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  return (await res.json()).id ?? null;
+}
+
+export async function getConversaciones(token: string) {
+  const res = await fetch(`${API_URL}/chat`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getMensajes(conversacionId: string, token: string) {
+  const res = await fetch(`${API_URL}/chat/${conversacionId}/mensajes`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function enviarMensaje(conversacionId: string, contenido: string, token: string) {
+  const res = await fetch(`${API_URL}/chat/${conversacionId}/mensajes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ contenido }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function ocultarConversacion(conversacionId: string, token: string): Promise<boolean> {
+  const res = await fetch(`${API_URL}/chat/${conversacionId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.ok;
+}
+
+export async function setChatAbierto(conversacionId: string | null, token: string): Promise<boolean> {
+  const res = await fetch(`${API_URL}/chat/abierto`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ conversacionId }),
+  });
+  return res.ok;
+}
+
+export async function getNoLeidosCount(token: string): Promise<number> {
+  const res = await fetch(`${API_URL}/chat/no-leidos`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return 0;
+  return (await res.json()).count ?? 0;
+}
+
+export async function guardarPushToken(push_token: string | null, token: string): Promise<boolean> {
+  const res = await fetch(`${API_URL}/usuarios/me/push-token`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ push_token }),
+  });
+  return res.ok;
+}

@@ -1,4 +1,4 @@
-import { MapPin, Menu, X, User, LogOut, UserPlus } from "lucide-react";
+import { MapPin, Menu, X, User, LogOut, UserPlus, MessageCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -23,6 +23,7 @@ export default function Navbar() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [solicitudesCount, setSolicitudesCount] = useState(0);
+  const [noLeidosCount, setNoLeidosCount] = useState(0);
   const navigate = useNavigate();
 
   const links = [
@@ -39,6 +40,7 @@ export default function Navbar() {
         loadProfile(session.user.id);
         setOnline(session.user.id, true);
         loadSolicitudesCount(session.access_token);
+        loadNoLeidosCount(session.access_token);
       }
     });
 
@@ -48,10 +50,12 @@ export default function Navbar() {
         loadProfile(session.user.id);
         setOnline(session.user.id, true);
         loadSolicitudesCount(session.access_token);
+        loadNoLeidosCount(session.access_token);
       } else {
         setAvatarUrl(null);
         setUsername(null);
         setSolicitudesCount(0);
+        setNoLeidosCount(0);
       }
     });
 
@@ -91,6 +95,15 @@ export default function Navbar() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setSolicitudesCount((await res.json()).length);
+    } catch { /* backend no disponible */ }
+  }
+
+  async function loadNoLeidosCount(token: string) {
+    try {
+      const res = await fetch(`${API_URL}/chat/no-leidos`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setNoLeidosCount((await res.json()).count);
     } catch { /* backend no disponible */ }
   }
 
@@ -143,6 +156,20 @@ export default function Navbar() {
                 {solicitudesCount > 0 && (
                   <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                     {solicitudesCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Mensajes */}
+              <button
+                onClick={() => navigate("/chats")}
+                className="relative h-9 w-9 rounded-full border border-border bg-surface-3 flex items-center justify-center hover:border-primary/50 hover:text-primary transition-colors text-muted-foreground"
+                title="Mensajes"
+              >
+                <MessageCircle className="h-4 w-4" />
+                {noLeidosCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {noLeidosCount}
                   </span>
                 )}
               </button>
@@ -245,6 +272,20 @@ export default function Navbar() {
                 {solicitudesCount > 0 && (
                   <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
                     {solicitudesCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => { setOpen(false); navigate("/chats"); }}
+                className="flex items-center justify-between rounded-md border border-border bg-surface-3 px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  Mensajes
+                </span>
+                {noLeidosCount > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                    {noLeidosCount}
                   </span>
                 )}
               </button>

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   MapPin, Shield, Route, Gauge, Star,
   Calendar, ArrowLeft, Bike, Clock, ChevronRight, Pencil,
-  UserPlus, UserCheck, Check, X
+  UserPlus, UserCheck, Check, X, MessageCircle
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -86,6 +86,7 @@ export default function ProfilePage() {
   const [friendStatus, setFriendStatus] = useState<FriendStatus>(null);
   const [friendRequestId, setFriendRequestId] = useState<string | null>(null);
   const [friendLoading, setFriendLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const [friendCount, setFriendCount] = useState(0);
 
   useEffect(() => {
@@ -198,6 +199,21 @@ export default function ProfilePage() {
     setFriendLoading(false);
   }
 
+  async function handleAbrirChat() {
+    const token = await getToken();
+    if (!token || !username) return;
+    setChatLoading(true);
+    const res = await fetch(`${API_URL}/chat/${username}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const { id } = await res.json();
+      navigate(`/chats/${id}`);
+    }
+    setChatLoading(false);
+  }
+
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -275,31 +291,36 @@ export default function ProfilePage() {
     }
 
     return (
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <button disabled={friendLoading} className={`${base} border-success/40 bg-success/10 text-success hover:border-danger/50 hover:bg-danger/10 hover:text-danger`}>
-            <UserCheck className="h-4 w-4" /> Amigos
-          </button>
-        </AlertDialogTrigger>
-        <AlertDialogContent className="bg-card border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-display text-xl text-foreground">
-              ¿Estás seguro que quieres eliminar amistad con {profile?.nombre} {profile?.apellidos}?
-            </AlertDialogTitle>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="border-border text-foreground hover:bg-surface-3">
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleEliminarRelacion}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <div className={`flex gap-2 ${full ? "w-full" : ""}`}>
+        <button onClick={handleAbrirChat} disabled={chatLoading} className={`${base} flex-1 border-primary/40 bg-primary/10 text-primary hover:bg-primary/20`}>
+          <MessageCircle className="h-4 w-4" /> Mensaje
+        </button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button disabled={friendLoading} className={`${base} flex-1 border-success/40 bg-success/10 text-success hover:border-danger/50 hover:bg-danger/10 hover:text-danger`}>
+              <UserCheck className="h-4 w-4" /> Amigos
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="bg-card border-border">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-display text-xl text-foreground">
+                ¿Estás seguro que quieres eliminar amistad con {profile?.nombre} {profile?.apellidos}?
+              </AlertDialogTitle>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-border text-foreground hover:bg-surface-3">
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleEliminarRelacion}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     );
   }
 

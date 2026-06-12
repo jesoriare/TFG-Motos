@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
 import { getSolicitudesAmistad, getAmigosCount } from '@/lib/api';
+import ChatAccess from '@/components/ChatAccess';
 
 function SinSesion() {
   const router = useRouter();
@@ -116,6 +117,7 @@ export default function PerfilScreen() {
   const initials = `${profile.nombre.charAt(0)}${profile.apellidos?.charAt(0) ?? ''}`.toUpperCase();
 
   return (
+    <ChatAccess>
     <ScrollView
       style={s.scroll}
       contentContainerStyle={s.container}
@@ -208,6 +210,7 @@ export default function PerfilScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </ChatAccess>
   );
 }
 

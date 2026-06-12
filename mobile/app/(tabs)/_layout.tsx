@@ -43,7 +43,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Refrescar el contador al cambiar de pestaña (por si se aceptó/rechazó una solicitud)
+  // Refrescar el contador de solicitudes al cambiar de pestaña (por si se aceptó una)
   useEffect(() => {
     loadSolicitudesCount();
   }, [state.index]);

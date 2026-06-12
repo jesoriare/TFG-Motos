@@ -23,16 +23,18 @@ create type estado_solicitud as enum ('pendiente', 'aceptada', 'rechazada');
 -- ============================================================
 
 create table profiles (
-  id           uuid primary key references auth.users(id) on delete cascade,
-  nombre       text not null,
-  apellidos    text not null,
-  username     text unique not null,
-  avatar_url   text,
-  zona         text,
-  verified     boolean not null default false,
-  online       boolean not null default false,
-  last_seen    timestamptz,
-  created_at   timestamptz not null default now()
+  id              uuid primary key references auth.users(id) on delete cascade,
+  nombre          text not null,
+  apellidos       text not null,
+  username        text unique not null,
+  avatar_url      text,
+  zona            text,
+  verified        boolean not null default false,
+  online          boolean not null default false,
+  last_seen       timestamptz,
+  push_token      text,
+  chat_abierto_id uuid,
+  created_at      timestamptz not null default now()
 );
 
 -- ============================================================
@@ -132,6 +134,41 @@ create table solicitudes_amistad (
 );
 
 -- ============================================================
+-- CHAT PRIVADO ENTRE AMIGOS
+-- ============================================================
+
+create table conversaciones (
+  id                uuid primary key default uuid_generate_v4(),
+  usuario1_id       uuid not null references profiles(id) on delete cascade,
+  usuario2_id       uuid not null references profiles(id) on delete cascade,
+  created_at        timestamptz not null default now(),
+  ultimo_mensaje_at timestamptz not null default now(),
+  constraint conversacion_distinta_persona check (usuario1_id <> usuario2_id),
+  constraint conversacion_orden check (usuario1_id < usuario2_id),
+  unique (usuario1_id, usuario2_id)
+);
+
+alter table profiles
+  add constraint profiles_chat_abierto_fkey
+  foreign key (chat_abierto_id) references conversaciones(id) on delete set null;
+
+create table mensajes (
+  id              uuid primary key default uuid_generate_v4(),
+  conversacion_id uuid not null references conversaciones(id) on delete cascade,
+  emisor_id       uuid not null references profiles(id) on delete cascade,
+  contenido       text not null,
+  created_at      timestamptz not null default now(),
+  leido           boolean not null default false
+);
+
+create table conversaciones_ocultas (
+  conversacion_id uuid not null references conversaciones(id) on delete cascade,
+  usuario_id      uuid not null references profiles(id) on delete cascade,
+  ocultada_at     timestamptz not null default now(),
+  primary key (conversacion_id, usuario_id)
+);
+
+-- ============================================================
 -- GRUPOS DE RODADA
 -- ============================================================
 
@@ -224,6 +261,23 @@ create trigger trg_sync_confirmaciones
   for each row execute procedure sync_confirmaciones();
 
 -- ============================================================
+-- FUNCIÓN + TRIGGER: sincronizar conversación al recibir mensaje
+-- ============================================================
+
+create or replace function sync_conversacion_on_mensaje()
+returns trigger language plpgsql as $$
+begin
+  update conversaciones set ultimo_mensaje_at = new.created_at where id = new.conversacion_id;
+  delete from conversaciones_ocultas where conversacion_id = new.conversacion_id;
+  return new;
+end;
+$$;
+
+create trigger trg_sync_conversacion_on_mensaje
+  after insert on mensajes
+  for each row execute procedure sync_conversacion_on_mensaje();
+
+-- ============================================================
 -- ROW LEVEL SECURITY (RLS)
 -- ============================================================
 
@@ -235,6 +289,9 @@ alter table rutas_favoritas           enable row level security;
 alter table incidencias               enable row level security;
 alter table confirmaciones_incidencia enable row level security;
 alter table solicitudes_amistad       enable row level security;
+alter table conversaciones            enable row level security;
+alter table mensajes                  enable row level security;
+alter table conversaciones_ocultas    enable row level security;
 alter table grupos                    enable row level security;
 alter table miembros_grupo            enable row level security;
 alter table ubicaciones               enable row level security;
@@ -282,6 +339,39 @@ create policy "solicitudes_insert" on solicitudes_amistad for insert with check 
 create policy "solicitudes_update" on solicitudes_amistad for update using (auth.uid() = emisor_id or auth.uid() = receptor_id);
 create policy "solicitudes_delete" on solicitudes_amistad for delete using (auth.uid() = emisor_id or auth.uid() = receptor_id);
 
+-- conversaciones: solo los dos participantes pueden ver/crear/actualizar
+create policy "conversaciones_select" on conversaciones for select using (auth.uid() = usuario1_id or auth.uid() = usuario2_id);
+create policy "conversaciones_insert" on conversaciones for insert with check (auth.uid() = usuario1_id or auth.uid() = usuario2_id);
+create policy "conversaciones_update" on conversaciones for update using (auth.uid() = usuario1_id or auth.uid() = usuario2_id);
+
+-- mensajes: solo los participantes de la conversación pueden ver/crear/actualizar
+create policy "mensajes_select" on mensajes for select
+  using (exists (
+    select 1 from conversaciones c
+    where c.id = mensajes.conversacion_id
+      and (c.usuario1_id = auth.uid() or c.usuario2_id = auth.uid())
+  ));
+create policy "mensajes_insert" on mensajes for insert
+  with check (
+    auth.uid() = emisor_id
+    and exists (
+      select 1 from conversaciones c
+      where c.id = mensajes.conversacion_id
+        and (c.usuario1_id = auth.uid() or c.usuario2_id = auth.uid())
+    )
+  );
+create policy "mensajes_update" on mensajes for update
+  using (exists (
+    select 1 from conversaciones c
+    where c.id = mensajes.conversacion_id
+      and (c.usuario1_id = auth.uid() or c.usuario2_id = auth.uid())
+  ));
+
+-- conversaciones_ocultas: cada usuario gestiona solo sus propias filas
+create policy "ocultas_select" on conversaciones_ocultas for select using (auth.uid() = usuario_id);
+create policy "ocultas_insert" on conversaciones_ocultas for insert with check (auth.uid() = usuario_id);
+create policy "ocultas_delete" on conversaciones_ocultas for delete using (auth.uid() = usuario_id);
+
 -- grupos
 create policy "grupos_select" on grupos for select using (true);
 create policy "grupos_insert" on grupos for insert with check (auth.uid() = lider_id);
@@ -301,3 +391,9 @@ create policy "ubicaciones_update" on ubicaciones for update using (auth.uid() =
 create policy "poi_select" on puntos_interes for select using (true);
 create policy "poi_insert" on puntos_interes for insert with check (auth.uid() = user_id);
 create policy "poi_delete" on puntos_interes for delete using (auth.uid() = user_id);
+
+-- ============================================================
+-- REALTIME
+-- ============================================================
+
+alter publication supabase_realtime add table mensajes;
