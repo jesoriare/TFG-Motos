@@ -2,9 +2,24 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   MapPin, Shield, Route, Gauge, Star,
-  Calendar, ArrowLeft, Bike, Clock, ChevronRight, Pencil
+  Calendar, ArrowLeft, Bike, Clock, ChevronRight, Pencil,
+  UserPlus, UserCheck, Check, X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
+
+type FriendStatus = "ninguno" | "pendiente_enviada" | "pendiente_recibida" | "amigos" | "propio" | null;
 
 interface Profile {
   id: string;
@@ -67,6 +82,11 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isOwn, setIsOwn] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [friendStatus, setFriendStatus] = useState<FriendStatus>(null);
+  const [friendRequestId, setFriendRequestId] = useState<string | null>(null);
+  const [friendLoading, setFriendLoading] = useState(false);
+  const [friendCount, setFriendCount] = useState(0);
 
   useEffect(() => {
     if (!username) return;
@@ -82,6 +102,25 @@ export default function ProfilePage() {
 
       const { data: { session } } = await supabase.auth.getSession();
       setIsOwn(session?.user?.id === p.id);
+      setLoggedIn(!!session);
+
+      if (session && session.user.id !== p.id) {
+        fetch(`${API_URL}/amistad/estado/${username}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => {
+            if (!d) return;
+            setFriendStatus(d.estado);
+            setFriendRequestId(d.id ?? null);
+          })
+          .catch(() => {});
+      }
+
+      fetch(`${API_URL}/amistad/amigos/${username}/count`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setFriendCount(d.count); })
+        .catch(() => {});
 
       const [{ data: m }, { data: r }] = await Promise.all([
         supabase.from("motos").select("marca_modelo, cilindrada, tipo").eq("user_id", p.id),
@@ -98,6 +137,66 @@ export default function ProfilePage() {
     }
     load();
   }, [username]);
+
+  async function getToken() {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  }
+
+  async function handleEnviarSolicitud() {
+    const token = await getToken();
+    if (!token || !username) return;
+    setFriendLoading(true);
+    const res = await fetch(`${API_URL}/amistad/${username}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setFriendStatus(d.estado === "aceptada" ? "amigos" : "pendiente_enviada");
+      setFriendRequestId(d.id);
+    }
+    setFriendLoading(false);
+  }
+
+  async function handleAceptarSolicitud() {
+    if (!friendRequestId) return;
+    const token = await getToken();
+    if (!token) return;
+    setFriendLoading(true);
+    const res = await fetch(`${API_URL}/amistad/${friendRequestId}/aceptar`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) setFriendStatus("amigos");
+    setFriendLoading(false);
+  }
+
+  async function handleRechazarSolicitud() {
+    if (!friendRequestId) return;
+    const token = await getToken();
+    if (!token) return;
+    setFriendLoading(true);
+    const res = await fetch(`${API_URL}/amistad/${friendRequestId}/rechazar`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) { setFriendStatus("ninguno"); setFriendRequestId(null); }
+    setFriendLoading(false);
+  }
+
+  async function handleEliminarRelacion() {
+    if (!friendRequestId) return;
+    const token = await getToken();
+    if (!token) return;
+    setFriendLoading(true);
+    const res = await fetch(`${API_URL}/amistad/${friendRequestId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) { setFriendStatus("ninguno"); setFriendRequestId(null); }
+    setFriendLoading(false);
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -118,6 +217,91 @@ export default function ProfilePage() {
   const initials = profile
     ? `${profile.nombre.charAt(0)}${profile.apellidos.charAt(0)}`.toUpperCase()
     : "?";
+
+  function FriendButtons({ full }: { full?: boolean }) {
+    if (!loggedIn || isOwn || friendStatus === null || friendStatus === "propio") return null;
+
+    const base = `flex items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold transition-all disabled:opacity-50 ${full ? "w-full" : ""}`;
+
+    if (friendStatus === "ninguno") {
+      return (
+        <button onClick={handleEnviarSolicitud} disabled={friendLoading} className={`${base} border-primary/40 bg-primary/10 text-primary hover:bg-primary/20`}>
+          <UserPlus className="h-4 w-4" /> Enviar solicitud
+        </button>
+      );
+    }
+
+    if (friendStatus === "pendiente_enviada") {
+      return (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button disabled={friendLoading} className={`${base} border-border bg-surface-3 text-muted-foreground hover:border-danger/50 hover:text-danger`}>
+              <X className="h-4 w-4" /> Cancelar solicitud
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="bg-card border-border">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-display text-xl text-foreground">
+                ¿Estás seguro que quieres eliminar amistad con {profile?.nombre} {profile?.apellidos}?
+              </AlertDialogTitle>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-border text-foreground hover:bg-surface-3">
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleEliminarRelacion}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      );
+    }
+
+    if (friendStatus === "pendiente_recibida") {
+      return (
+        <div className={`flex gap-2 ${full ? "w-full" : ""}`}>
+          <button onClick={handleAceptarSolicitud} disabled={friendLoading} className={`${base} flex-1 border-success/40 bg-success/10 text-success hover:bg-success/20`}>
+            <Check className="h-4 w-4" /> Aceptar
+          </button>
+          <button onClick={handleRechazarSolicitud} disabled={friendLoading} className={`${base} flex-1 border-border bg-surface-3 text-muted-foreground hover:border-danger/50 hover:text-danger`}>
+            <X className="h-4 w-4" /> Rechazar
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <button disabled={friendLoading} className={`${base} border-success/40 bg-success/10 text-success hover:border-danger/50 hover:bg-danger/10 hover:text-danger`}>
+            <UserCheck className="h-4 w-4" /> Amigos
+          </button>
+        </AlertDialogTrigger>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-xl text-foreground">
+              ¿Estás seguro que quieres eliminar amistad con {profile?.nombre} {profile?.apellidos}?
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-border text-foreground hover:bg-surface-3">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleEliminarRelacion}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -201,6 +385,13 @@ export default function ProfilePage() {
                 </button>
               )}
 
+              {/* Solicitud de amistad (otros perfiles) */}
+              {!isOwn && (
+                <div className="hidden sm:block shrink-0">
+                  <FriendButtons />
+                </div>
+              )}
+
               {/* Stats */}
               <div className="flex sm:flex-col gap-4 sm:gap-3 shrink-0">
                 <div className="text-center">
@@ -213,6 +404,13 @@ export default function ProfilePage() {
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5 uppercase tracking-wider">Motos</p>
                 </div>
+                <button
+                  onClick={() => navigate(`/perfil/${username}/amigos`)}
+                  className="text-center hover:opacity-80 transition-opacity"
+                >
+                  <p className="font-display text-3xl text-primary leading-none">{friendCount}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 uppercase tracking-wider">Amigos</p>
+                </button>
               </div>
             </div>
           </div>
@@ -227,6 +425,13 @@ export default function ProfilePage() {
             >
               <Pencil className="h-4 w-4" /> Editar perfil
             </button>
+          </div>
+        )}
+
+        {/* Solicitud de amistad móvil */}
+        {!isOwn && (
+          <div className="mt-4 sm:hidden">
+            <FriendButtons full />
           </div>
         )}
 
@@ -299,7 +504,11 @@ export default function ProfilePage() {
                 {rutas.map((ruta) => {
                   const rating = avgRating(ruta.valoraciones_ruta);
                   return (
-                    <div key={ruta.id} className="card-surface rounded-xl p-4 hover:border-primary/30 transition-all group cursor-pointer">
+                    <div
+                      key={ruta.id}
+                      onClick={() => navigate(`/rutas/${ruta.id}`)}
+                      className="card-surface rounded-xl p-4 hover:border-primary/30 transition-all group cursor-pointer"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap mb-1">

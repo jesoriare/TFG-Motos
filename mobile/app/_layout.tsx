@@ -28,6 +28,8 @@ export default function RootLayout() {
         <Stack.Screen name="registro" />
         <Stack.Screen name="perfil/[username]" />
         <Stack.Screen name="perfil/editar" />
+        <Stack.Screen name="solicitudes" />
+        <Stack.Screen name="amigos/[username]" />
       </Stack>
     </>
   );

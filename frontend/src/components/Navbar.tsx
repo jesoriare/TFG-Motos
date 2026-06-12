@@ -1,8 +1,10 @@
-import { MapPin, Menu, X, User, LogOut } from "lucide-react";
+import { MapPin, Menu, X, User, LogOut, UserPlus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+
+const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,13 +22,14 @@ export default function Navbar() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
+  const [solicitudesCount, setSolicitudesCount] = useState(0);
   const navigate = useNavigate();
 
   const links = [
-    { label: "Mapa", href: "#mapa" },
-    { label: "Rutas", href: "#rutas" },
-    { label: "Moteros", href: "#moteros" },
-    { label: "Incidencias", href: "#incidencias" },
+    { label: "Mapa", href: "/#mapa" },
+    { label: "Rutas", href: "/#rutas" },
+    { label: "Moteros", href: "/#moteros" },
+    { label: "Incidencias", href: "/#incidencias" },
   ];
 
   useEffect(() => {
@@ -35,6 +38,7 @@ export default function Navbar() {
       if (session?.user) {
         loadProfile(session.user.id);
         setOnline(session.user.id, true);
+        loadSolicitudesCount(session.access_token);
       }
     });
 
@@ -43,9 +47,11 @@ export default function Navbar() {
       if (session?.user) {
         loadProfile(session.user.id);
         setOnline(session.user.id, true);
+        loadSolicitudesCount(session.access_token);
       } else {
         setAvatarUrl(null);
         setUsername(null);
+        setSolicitudesCount(0);
       }
     });
 
@@ -77,6 +83,15 @@ export default function Navbar() {
       setAvatarUrl(data.avatar_url);
       setUsername(data.username);
     }
+  }
+
+  async function loadSolicitudesCount(token: string) {
+    try {
+      const res = await fetch(`${API_URL}/amistad/solicitudes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setSolicitudesCount((await res.json()).length);
+    } catch { /* backend no disponible */ }
   }
 
   async function handleLogout() {
@@ -118,6 +133,20 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <div className="flex items-center gap-3">
+              {/* Solicitudes de amistad */}
+              <button
+                onClick={() => navigate("/solicitudes")}
+                className="relative h-9 w-9 rounded-full border border-border bg-surface-3 flex items-center justify-center hover:border-primary/50 hover:text-primary transition-colors text-muted-foreground"
+                title="Solicitudes de amistad"
+              >
+                <UserPlus className="h-4 w-4" />
+                {solicitudesCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {solicitudesCount}
+                  </span>
+                )}
+              </button>
+
               {/* Avatar */}
               <div className="flex items-center gap-2">
                 <button
@@ -181,28 +210,44 @@ export default function Navbar() {
           ))}
 
           {user ? (
-            <div className="mt-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => navigate(`/perfil/${username}`)}
-                  className="h-9 w-9 rounded-full border-2 border-primary overflow-hidden bg-surface-3 flex items-center justify-center hover:border-primary/70 transition-colors"
-                >
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt={username ?? "avatar"} className="h-full w-full object-cover" />
-                  ) : (
-                    <User className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </button>
-                {username && (
+            <div className="mt-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => navigate(`/perfil/${username}`)}
-                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                    onClick={() => { setOpen(false); navigate(`/perfil/${username}`); }}
+                    className="h-9 w-9 rounded-full border-2 border-primary overflow-hidden bg-surface-3 flex items-center justify-center hover:border-primary/70 transition-colors"
                   >
-                    @{username}
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={username ?? "avatar"} className="h-full w-full object-cover" />
+                    ) : (
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    )}
                   </button>
-                )}
+                  {username && (
+                    <button
+                      onClick={() => { setOpen(false); navigate(`/perfil/${username}`); }}
+                      className="text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                    >
+                      @{username}
+                    </button>
+                  )}
+                </div>
+                <LogoutButton onConfirm={() => { setOpen(false); handleLogout(); }} />
               </div>
-              <LogoutButton onConfirm={() => { setOpen(false); handleLogout(); }} />
+              <button
+                onClick={() => { setOpen(false); navigate("/solicitudes"); }}
+                className="flex items-center justify-between rounded-md border border-border bg-surface-3 px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Solicitudes de amistad
+                </span>
+                {solicitudesCount > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                    {solicitudesCount}
+                  </span>
+                )}
+              </button>
             </div>
           ) : (
             <button

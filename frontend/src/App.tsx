@@ -11,6 +11,8 @@ import ProfilePage from "./pages/ProfilePage";
 import CrearRutaPage from "./pages/CrearRutaPage";
 import RutaDetallePage from "./pages/RutaDetallePage";
 import EditarRutaPage from "./pages/EditarRutaPage";
+import SolicitudesPage from "./pages/SolicitudesPage";
+import AmigosPage from "./pages/AmigosPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +28,8 @@ const App = () => (
           <Route path="/registro" element={<RegisterPage />} />
           <Route path="/entrar" element={<LoginPage />} />
           <Route path="/perfil/editar" element={<EditProfilePage />} />
+          <Route path="/solicitudes" element={<SolicitudesPage />} />
+          <Route path="/perfil/:username/amigos" element={<AmigosPage />} />
           <Route path="/perfil/:username" element={<ProfilePage />} />
           <Route path="/rutas/crear" element={<CrearRutaPage />} />
           <Route path="/rutas/:id" element={<RutaDetallePage />} />

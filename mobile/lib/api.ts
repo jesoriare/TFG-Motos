@@ -51,3 +51,65 @@ export async function eliminarIncidencia(id: string, token: string): Promise<boo
   });
   return res.ok;
 }
+
+export async function getEstadoAmistad(username: string, token: string) {
+  const res = await fetch(`${API_URL}/amistad/estado/${username}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function enviarSolicitudAmistad(username: string, token: string) {
+  const res = await fetch(`${API_URL}/amistad/${username}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function aceptarSolicitudAmistad(id: string, token: string): Promise<boolean> {
+  const res = await fetch(`${API_URL}/amistad/${id}/aceptar`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.ok;
+}
+
+export async function rechazarSolicitudAmistad(id: string, token: string): Promise<boolean> {
+  const res = await fetch(`${API_URL}/amistad/${id}/rechazar`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.ok;
+}
+
+export async function eliminarRelacionAmistad(id: string, token: string): Promise<boolean> {
+  const res = await fetch(`${API_URL}/amistad/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.ok;
+}
+
+export async function getSolicitudesAmistad(token: string) {
+  const res = await fetch(`${API_URL}/amistad/solicitudes`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getAmigosCount(username: string): Promise<number> {
+  const res = await fetch(`${API_URL}/amistad/amigos/${username}/count`);
+  if (!res.ok) return 0;
+  return (await res.json()).count ?? 0;
+}
+
+export async function getAmigos(username: string, token: string) {
+  const res = await fetch(`${API_URL}/amistad/amigos/${username}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return { status: res.status, data: res.ok ? await res.json() : null };
+}

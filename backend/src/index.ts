@@ -8,6 +8,7 @@ import rutasRouter from './routes/rutas.js';
 import incidenciasRouter from './routes/incidencias.js';
 import mapaRouter from './routes/mapa.js';
 import geocodeRouter from './routes/geocode.js';
+import amistadRouter from './routes/amistad.js';
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -23,5 +24,6 @@ app.use('/rutas', rutasRouter);
 app.use('/incidencias', incidenciasRouter);
 app.use('/mapa', mapaRouter);
 app.use('/geocode', geocodeRouter);
+app.use('/amistad', amistadRouter);
 
 app.listen(PORT, () => console.log(`Backend RodadaMoto en http://localhost:${PORT}`));

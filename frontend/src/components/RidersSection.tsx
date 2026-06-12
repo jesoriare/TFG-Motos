@@ -1,6 +1,7 @@
 import { MapPin, Filter, Shield, X, Loader2, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
 
 const API_URL = import.meta.env.VITE_API_URL as string || "http://localhost:3001";
 
@@ -25,6 +26,11 @@ export default function RidersSection() {
   const [riders, setRiders] = useState<Rider[]>([]);
   const [loading, setLoading] = useState(true);
   const [backendDown, setBackendDown] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id ?? null));
+  }, []);
 
   const fetchRiders = useCallback(async (search: string, tipo: string) => {
     setLoading(true);
@@ -118,13 +124,13 @@ export default function RidersSection() {
 
         {/* Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {!backendDown && !loading && riders.length === 0 && (
+          {!backendDown && !loading && riders.filter((r) => r.id !== currentUserId).length === 0 && (
             <div className="col-span-full text-center py-12 text-muted-foreground text-sm">
               No se encontraron moteros con esa búsqueda
             </div>
           )}
 
-          {riders.map((rider) => {
+          {riders.filter((r) => r.id !== currentUserId).map((rider) => {
             const moto = rider.motos?.[0];
             const initials = `${rider.nombre.charAt(0)}${rider.apellidos?.charAt(0) ?? ""}`.toUpperCase();
             return (

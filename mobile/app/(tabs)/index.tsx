@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, RefreshControl } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
@@ -16,14 +16,23 @@ export default function InicioScreen() {
     { icon: 'warning', value: 'En directo', label: 'Incidencias' },
   ]);
 
-  useFocusEffect(useCallback(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { setLoggedIn(false); return; }
-      setLoggedIn(true);
-      const { data } = await supabase.from('profiles').select('username, avatar_url').eq('id', session.user.id).single();
-      if (data) { setUsername(data.username); setAvatarUrl(data.avatar_url); }
-    });
-  }, []));
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setLoggedIn(false); return; }
+    setLoggedIn(true);
+    const { data } = await supabase.from('profiles').select('username, avatar_url').eq('id', session.user.id).single();
+    if (data) { setUsername(data.username); setAvatarUrl(data.avatar_url); }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
 
   const menu = [
     { icon: 'map-outline', label: 'Rutas', sub: 'Descubre rutas épicas', route: '/(tabs)/rutas', color: colors.primary },
@@ -33,7 +42,11 @@ export default function InicioScreen() {
   ];
 
   return (
-    <ScrollView style={s.scroll} contentContainerStyle={s.container}>
+    <ScrollView
+      style={s.scroll}
+      contentContainerStyle={s.container}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+    >
       {/* Header */}
       <View style={s.header}>
         <View>

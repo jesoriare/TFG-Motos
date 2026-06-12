@@ -15,6 +15,7 @@ create type dificultad_ruta as enum ('facil', 'media', 'media_alta', 'alta');
 create type tipo_incidencia as enum ('control_gc', 'radar', 'firme_mal_estado', 'accidente', 'obras', 'otro');
 create type severidad_incidencia as enum ('high', 'medium', 'low', 'resolved');
 create type tipo_poi as enum ('mirador', 'descanso', 'alerta', 'recarga');
+create type estado_solicitud as enum ('pendiente', 'aceptada', 'rechazada');
 
 -- ============================================================
 -- PERFILES DE USUARIO
@@ -113,6 +114,21 @@ create table confirmaciones_incidencia (
   user_id        uuid not null references profiles(id) on delete cascade,
   created_at     timestamptz not null default now(),
   primary key (incidencia_id, user_id)
+);
+
+-- ============================================================
+-- SOLICITUDES DE AMISTAD
+-- ============================================================
+
+create table solicitudes_amistad (
+  id          uuid primary key default uuid_generate_v4(),
+  emisor_id   uuid not null references profiles(id) on delete cascade,
+  receptor_id uuid not null references profiles(id) on delete cascade,
+  estado      estado_solicitud not null default 'pendiente',
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  constraint solicitud_distinta_persona check (emisor_id <> receptor_id),
+  unique (emisor_id, receptor_id)
 );
 
 -- ============================================================
@@ -218,6 +234,7 @@ alter table valoraciones_ruta         enable row level security;
 alter table rutas_favoritas           enable row level security;
 alter table incidencias               enable row level security;
 alter table confirmaciones_incidencia enable row level security;
+alter table solicitudes_amistad       enable row level security;
 alter table grupos                    enable row level security;
 alter table miembros_grupo            enable row level security;
 alter table ubicaciones               enable row level security;
@@ -258,6 +275,12 @@ create policy "incidencias_update" on incidencias for update using (auth.uid() =
 create policy "confirmaciones_select" on confirmaciones_incidencia for select using (true);
 create policy "confirmaciones_insert" on confirmaciones_incidencia for insert with check (auth.uid() = user_id);
 create policy "confirmaciones_delete" on confirmaciones_incidencia for delete using (auth.uid() = user_id);
+
+-- solicitudes_amistad: ambos implicados ven/gestionan la solicitud, solo el emisor crea
+create policy "solicitudes_select" on solicitudes_amistad for select using (auth.uid() = emisor_id or auth.uid() = receptor_id);
+create policy "solicitudes_insert" on solicitudes_amistad for insert with check (auth.uid() = emisor_id);
+create policy "solicitudes_update" on solicitudes_amistad for update using (auth.uid() = emisor_id or auth.uid() = receptor_id);
+create policy "solicitudes_delete" on solicitudes_amistad for delete using (auth.uid() = emisor_id or auth.uid() = receptor_id);
 
 -- grupos
 create policy "grupos_select" on grupos for select using (true);

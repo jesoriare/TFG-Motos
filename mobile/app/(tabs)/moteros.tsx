@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getRiders } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
 
 const TIPOS = ['Todos', 'Sport', 'Naked', 'Adventure', 'Custom', 'Touring', 'Enduro'];
@@ -20,6 +21,12 @@ export default function MoteroScreen() {
   const [query, setQuery] = useState('');
   const [tipo, setTipo] = useState('Todos');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id ?? null));
+  }, []);
 
   const fetch = useCallback(async (q: string, t: string) => {
     setLoading(true);
@@ -34,6 +41,12 @@ export default function MoteroScreen() {
     const t = setTimeout(() => fetch(query, tipo), 300);
     return () => clearTimeout(t);
   }, [query, tipo, fetch]);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await fetch(query, tipo);
+    setRefreshing(false);
+  }
 
   return (
     <View style={s.container}>
@@ -80,9 +93,10 @@ export default function MoteroScreen() {
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={riders}
+          data={riders.filter(r => r.id !== currentUserId)}
           keyExtractor={r => r.id}
           contentContainerStyle={{ padding: 20, paddingTop: 0, paddingBottom: 100, gap: 12 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           ListEmptyComponent={<Text style={s.empty}>No se encontraron moteros</Text>}
           renderItem={({ item: r }) => {
             const moto = r.motos?.[0];
@@ -91,7 +105,10 @@ export default function MoteroScreen() {
               <View style={s.card}>
                 <View style={s.cardTop}>
                   <View style={s.avatar}>
-                    <Text style={s.avatarText}>{initials}</Text>
+                    {r.avatar_url
+                      ? <Image source={{ uri: r.avatar_url }} style={s.avatarImg} />
+                      : <Text style={s.avatarText}>{initials}</Text>
+                    }
                     {r.online && <View style={s.onlineDot} />}
                   </View>
                   <View style={{ flex: 1 }}>
@@ -141,7 +158,8 @@ const s = StyleSheet.create({
   chipTextActive: { color: colors.primaryFg },
   card: { backgroundColor: colors.surface1, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 10 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: { width: 44, height: 44, borderRadius: 10, backgroundColor: colors.primary + '30', alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 44, height: 44, borderRadius: 10, backgroundColor: colors.primary + '30', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarImg: { width: '100%', height: '100%' },
   avatarText: { color: colors.primary, fontWeight: '800', fontSize: 14 },
   onlineDot: { position: 'absolute', bottom: -2, right: -2, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.success, borderWidth: 2, borderColor: colors.surface1 },
   name: { color: colors.foreground, fontWeight: '700', fontSize: 14 },
