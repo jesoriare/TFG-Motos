@@ -35,6 +35,20 @@ router.put('/me', requireAuth, async (req, res) => {
   res.json(data);
 });
 
+// PATCH /usuarios/me/push-token — guardar el token de notificaciones push (Expo)
+router.patch('/me/push-token', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const push_token = typeof req.body?.push_token === 'string' ? req.body.push_token : null;
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ push_token })
+    .eq('id', userId);
+
+  if (error) { res.status(400).json({ error: error.message }); return; }
+  res.json({ ok: true });
+});
+
 // GET /usuarios — listar moteros con filtros opcionales
 // Query params: search (username/nombre/apellidos/zona/moto), tipo
 router.get('/', async (req, res) => {

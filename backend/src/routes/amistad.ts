@@ -35,13 +35,15 @@ router.get('/estado/:username', requireAuth, async (req, res) => {
   if (otherError || !other) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
   if (other.id === userId) { res.json({ estado: 'propio' }); return; }
 
-  const { data, error } = await supabase
+  const { data: rows, error } = await supabase
     .from('solicitudes_amistad')
     .select('id, emisor_id, receptor_id, estado')
     .or(`and(emisor_id.eq.${userId},receptor_id.eq.${other.id}),and(emisor_id.eq.${other.id},receptor_id.eq.${userId})`)
-    .maybeSingle();
+    .order('updated_at', { ascending: false });
 
   if (error) { res.status(500).json({ error: error.message }); return; }
+
+  const data = rows?.[0] ?? null;
 
   if (!data || data.estado === 'rechazada') { res.json({ estado: 'ninguno' }); return; }
   if (data.estado === 'aceptada') { res.json({ estado: 'amigos', id: data.id }); return; }
@@ -124,41 +126,26 @@ router.post('/:username', requireAuth, async (req, res) => {
   if (otherError || !other) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
   if (other.id === userId) { res.status(400).json({ error: 'No puedes enviarte una solicitud a ti mismo' }); return; }
 
-  // Si el otro usuario ya te había enviado una solicitud pendiente, se acepta directamente
-  const { data: inversa } = await supabase
+  // Buscar cualquier solicitud existente entre ambos usuarios, en cualquier dirección
+  const { data: rows, error: rowsError } = await supabase
     .from('solicitudes_amistad')
-    .select('id, estado')
-    .eq('emisor_id', other.id)
-    .eq('receptor_id', userId)
-    .maybeSingle();
+    .select('id, emisor_id, receptor_id, estado')
+    .or(`and(emisor_id.eq.${userId},receptor_id.eq.${other.id}),and(emisor_id.eq.${other.id},receptor_id.eq.${userId})`)
+    .order('updated_at', { ascending: false });
 
-  if (inversa && inversa.estado === 'pendiente') {
-    const { data, error } = await supabase
-      .from('solicitudes_amistad')
-      .update({ estado: 'aceptada', updated_at: new Date().toISOString() })
-      .eq('id', inversa.id)
-      .select()
-      .single();
+  if (rowsError) { res.status(500).json({ error: rowsError.message }); return; }
 
-    if (error) { res.status(400).json({ error: error.message }); return; }
-    res.json(data);
-    return;
+  const [existing, ...duplicados] = rows ?? [];
+
+  // Autocorrección: nunca debería haber más de una fila por par de usuarios
+  if (duplicados.length > 0) {
+    await supabase.from('solicitudes_amistad').delete().in('id', duplicados.map(d => d.id));
   }
 
-  const { data: existing } = await supabase
-    .from('solicitudes_amistad')
-    .select('id, estado')
-    .eq('emisor_id', userId)
-    .eq('receptor_id', other.id)
-    .maybeSingle();
-
-  if (existing) {
-    if (existing.estado !== 'rechazada') { res.status(409).json({ error: 'Ya existe una solicitud con este usuario' }); return; }
-
+  if (!existing) {
     const { data, error } = await supabase
       .from('solicitudes_amistad')
-      .update({ estado: 'pendiente', updated_at: new Date().toISOString() })
-      .eq('id', existing.id)
+      .insert({ emisor_id: userId, receptor_id: other.id })
       .select()
       .single();
 
@@ -167,9 +154,29 @@ router.post('/:username', requireAuth, async (req, res) => {
     return;
   }
 
+  if (existing.estado === 'aceptada') { res.status(409).json({ error: 'Ya sois amigos' }); return; }
+
+  if (existing.estado === 'pendiente') {
+    if (existing.emisor_id === userId) { res.status(409).json({ error: 'Ya existe una solicitud con este usuario' }); return; }
+
+    // El otro usuario ya te había enviado una solicitud pendiente: se acepta directamente
+    const { data, error } = await supabase
+      .from('solicitudes_amistad')
+      .update({ estado: 'aceptada', updated_at: new Date().toISOString() })
+      .eq('id', existing.id)
+      .select()
+      .single();
+
+    if (error) { res.status(400).json({ error: error.message }); return; }
+    res.json(data);
+    return;
+  }
+
+  // estado === 'rechazada' -> reenviar reutilizando la fila, con el sentido correcto
   const { data, error } = await supabase
     .from('solicitudes_amistad')
-    .insert({ emisor_id: userId, receptor_id: other.id })
+    .update({ emisor_id: userId, receptor_id: other.id, estado: 'pendiente', updated_at: new Date().toISOString() })
+    .eq('id', existing.id)
     .select()
     .single();
 

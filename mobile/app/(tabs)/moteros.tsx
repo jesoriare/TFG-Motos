@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getRiders } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
+import ChatAccess from '@/components/ChatAccess';
 
 const TIPOS = ['Todos', 'Sport', 'Naked', 'Adventure', 'Custom', 'Touring', 'Enduro'];
 
@@ -49,6 +50,7 @@ export default function MoteroScreen() {
   }
 
   return (
+    <ChatAccess>
     <View style={s.container}>
       {/* Header */}
       <View style={s.header}>
@@ -142,6 +144,7 @@ export default function MoteroScreen() {
         />
       )}
     </View>
+    </ChatAccess>
   );
 }
 

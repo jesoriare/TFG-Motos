@@ -4,6 +4,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
+import ChatAccess from '@/components/ChatAccess';
 
 export default function InicioScreen() {
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function InicioScreen() {
   ];
 
   return (
+    <ChatAccess>
     <ScrollView
       style={s.scroll}
       contentContainerStyle={s.container}
@@ -113,6 +115,7 @@ export default function InicioScreen() {
         ))}
       </View>
     </ScrollView>
+    </ChatAccess>
   );
 }
 

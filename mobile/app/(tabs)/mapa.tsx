@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Defs, Pattern, Rect, Line } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
+import ChatAccess from '@/components/ChatAccess';
 
 const { width } = Dimensions.get('window');
 const MAP_HEIGHT = width * 0.85;
@@ -56,6 +57,7 @@ export default function MapaScreen() {
   const onlineRiders = riders.filter(r => r.profiles?.online);
 
   return (
+    <ChatAccess>
     <View style={s.container}>
       <View style={s.header}>
         <View>
@@ -198,6 +200,7 @@ export default function MapaScreen() {
         </View>
       </ScrollView>
     </View>
+    </ChatAccess>
   );
 }
 

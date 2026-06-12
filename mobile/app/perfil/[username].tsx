@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
 import {
   getEstadoAmistad, enviarSolicitudAmistad, aceptarSolicitudAmistad,
-  rechazarSolicitudAmistad, eliminarRelacionAmistad, getAmigosCount,
+  rechazarSolicitudAmistad, eliminarRelacionAmistad, getAmigosCount, crearOAbrirChat,
 } from '@/lib/api';
 
 type FriendStatus = 'ninguno' | 'pendiente_enviada' | 'pendiente_recibida' | 'amigos' | 'propio' | null;
@@ -21,6 +21,7 @@ export default function PerfilUsuarioScreen() {
   const [friendStatus, setFriendStatus] = useState<FriendStatus>(null);
   const [friendRequestId, setFriendRequestId] = useState<string | null>(null);
   const [friendLoading, setFriendLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const [friendCount, setFriendCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -106,6 +107,15 @@ export default function PerfilUsuarioScreen() {
     setFriendLoading(false);
   }
 
+  async function handleAbrirChat() {
+    const token = await getToken();
+    if (!token) return;
+    setChatLoading(true);
+    const id = await crearOAbrirChat(profile.username, token);
+    setChatLoading(false);
+    if (id) router.push(`/chats/${id}` as any);
+  }
+
   function confirmEliminarRelacion() {
     Alert.alert(
       'Eliminar amistad',
@@ -179,14 +189,24 @@ export default function PerfilUsuarioScreen() {
           </View>
         )}
         {friendStatus === 'amigos' && (
-          <TouchableOpacity style={[s.friendBtn, s.friendBtnSuccess]} onPress={confirmEliminarRelacion} disabled={friendLoading}>
-            {friendLoading ? <ActivityIndicator size="small" color={colors.success} /> : (
-              <>
-                <Ionicons name="checkmark-done-outline" size={16} color={colors.success} />
-                <Text style={[s.friendBtnText, { color: colors.success }]}>Amigos</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={s.friendRow}>
+            <TouchableOpacity style={[s.friendBtn, s.friendBtnPrimary, s.friendBtnHalf]} onPress={handleAbrirChat} disabled={chatLoading}>
+              {chatLoading ? <ActivityIndicator size="small" color={colors.primary} /> : (
+                <>
+                  <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
+                  <Text style={[s.friendBtnText, { color: colors.primary }]}>Mensaje</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.friendBtn, s.friendBtnSuccess, s.friendBtnHalf]} onPress={confirmEliminarRelacion} disabled={friendLoading}>
+              {friendLoading ? <ActivityIndicator size="small" color={colors.success} /> : (
+                <>
+                  <Ionicons name="checkmark-done-outline" size={16} color={colors.success} />
+                  <Text style={[s.friendBtnText, { color: colors.success }]}>Amigos</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 

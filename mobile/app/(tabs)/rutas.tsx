@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getRutas } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
 import { CIUDADES_ESPANA } from '@/data/ciudades-espana';
+import ChatAccess from '@/components/ChatAccess';
 
 const DIFICULTAD_COLOR: Record<string, string> = {
   facil: colors.success, media: colors.amber,
@@ -72,6 +73,7 @@ export default function RutasScreen() {
   }
 
   return (
+    <ChatAccess>
     <View style={s.container}>
       <View style={s.header}>
         <View>
@@ -222,6 +224,7 @@ export default function RutasScreen() {
         </TouchableOpacity>
       </Modal>
     </View>
+    </ChatAccess>
   );
 }
 

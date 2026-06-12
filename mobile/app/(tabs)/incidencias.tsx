@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getIncidencias, confirmarIncidencia, eliminarIncidencia } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
+import ChatAccess from '@/components/ChatAccess';
 
 const TIPO_ICON: Record<string, string> = {
   control_gc: 'shield', radar: 'speedometer', firme_mal_estado: 'warning',
@@ -141,6 +142,7 @@ export default function IncidenciasScreen() {
   }
 
   return (
+    <ChatAccess>
     <View style={s.container}>
       <View style={s.header}>
         <View>
@@ -302,6 +304,7 @@ export default function IncidenciasScreen() {
         </KeyboardAvoidingView>
       </Modal>
     </View>
+    </ChatAccess>
   );
 }
 
