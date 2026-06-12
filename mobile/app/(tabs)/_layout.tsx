@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
+import { getSolicitudesAmistad } from '@/lib/api';
 
 const TABS = [
   { name: 'index',      label: 'Inicio',   icon: 'home'     },
@@ -17,6 +18,14 @@ const TABS = [
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [solicitudesCount, setSolicitudesCount] = useState(0);
+
+  async function loadSolicitudesCount() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setSolicitudesCount(0); return; }
+    const solicitudes = await getSolicitudesAmistad(session.access_token);
+    setSolicitudesCount(solicitudes.length);
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -24,13 +33,20 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
       const { data } = await supabase.from('profiles').select('avatar_url').eq('id', session.user.id).single();
       if (data?.avatar_url) setAvatarUrl(data.avatar_url);
     });
+    loadSolicitudesCount();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!session) { setAvatarUrl(null); return; }
+      if (!session) { setAvatarUrl(null); setSolicitudesCount(0); return; }
       supabase.from('profiles').select('avatar_url').eq('id', session.user.id).single()
         .then(({ data }) => { if (data?.avatar_url) setAvatarUrl(data.avatar_url); });
+      loadSolicitudesCount();
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Refrescar el contador al cambiar de pestaña (por si se aceptó/rechazó una solicitud)
+  useEffect(() => {
+    loadSolicitudesCount();
+  }, [state.index]);
 
   return (
     <View style={s.wrapper}>
@@ -46,11 +62,26 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
               onPress={() => navigation.navigate(tab.name)}
               activeOpacity={0.7}
             >
-              {isPerfil && avatarUrl ? (
-                <Image
-                  source={{ uri: avatarUrl }}
-                  style={[s.avatar, isFocused && s.avatarActive]}
-                />
+              {isPerfil ? (
+                <View style={s.avatarWrap}>
+                  {avatarUrl ? (
+                    <Image
+                      source={{ uri: avatarUrl }}
+                      style={[s.avatar, isFocused && s.avatarActive]}
+                    />
+                  ) : (
+                    <Ionicons
+                      name={(isFocused ? tab.icon : `${tab.icon}-outline`) as any}
+                      size={22}
+                      color={isFocused ? colors.primary : colors.muted}
+                    />
+                  )}
+                  {solicitudesCount > 0 && (
+                    <View style={s.badge}>
+                      <Text style={s.badgeText}>{solicitudesCount > 9 ? '9+' : solicitudesCount}</Text>
+                    </View>
+                  )}
+                </View>
               ) : (
                 <Ionicons
                   name={(isFocused ? tab.icon : `${tab.icon}-outline`) as any}
@@ -126,6 +157,9 @@ const s = StyleSheet.create({
   tabActive: {
     backgroundColor: colors.primary + '18',
   },
+  avatarWrap: {
+    position: 'relative',
+  },
   avatar: {
     width: 24,
     height: 24,
@@ -135,6 +169,26 @@ const s = StyleSheet.create({
   },
   avatarActive: {
     borderColor: colors.primary,
+  },
+  badge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.surface1,
+  },
+  badgeText: {
+    color: colors.primaryFg,
+    fontSize: 9,
+    fontWeight: '800',
+    lineHeight: 11,
   },
   label: {
     fontSize: 9,

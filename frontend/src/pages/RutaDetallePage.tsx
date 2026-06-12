@@ -157,7 +157,7 @@ export default function RutaDetallePage() {
       {/* Header */}
       <header className="border-b border-border/50 bg-background/80 backdrop-blur-md px-4 py-3 flex-shrink-0">
         <div className="mx-auto flex max-w-full items-center justify-between">
-          <button onClick={() => navigate("/")} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
             <span className="text-sm font-semibold">Volver</span>
           </button>

@@ -243,7 +243,7 @@ export default function EditarRutaPage() {
       {/* Header */}
       <header className="border-b border-border/50 bg-background/80 backdrop-blur-md px-4 py-3 flex-shrink-0">
         <div className="mx-auto flex max-w-full items-center justify-between">
-          <button onClick={() => navigate(`/rutas/${id}`)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
             <span className="text-sm font-semibold">Volver</span>
           </button>
@@ -491,7 +491,7 @@ export default function EditarRutaPage() {
               {error && <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</p>}
 
               <div className="flex gap-3">
-                <button type="button" onClick={() => navigate(`/rutas/${id}`)}
+                <button type="button" onClick={() => navigate(-1)}
                   className="flex-1 rounded-md border border-border py-3 text-sm font-bold text-muted-foreground hover:border-primary/50 hover:text-primary transition-all">
                   Cancelar
                 </button>

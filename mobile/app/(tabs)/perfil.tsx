@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Alert, RefreshControl } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/constants/theme';
+import { getSolicitudesAmistad, getAmigosCount } from '@/lib/api';
 
 function SinSesion() {
   const router = useRouter();
@@ -44,6 +45,9 @@ export default function PerfilScreen() {
   const [motos, setMotos] = useState<Moto[]>([]);
   const [rutasCount, setRutasCount] = useState(0);
   const [sinSesion, setSinSesion] = useState(false);
+  const [solicitudesCount, setSolicitudesCount] = useState(0);
+  const [friendCount, setFriendCount] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(useCallback(() => {
     load();
@@ -76,6 +80,17 @@ export default function PerfilScreen() {
     if (p) setProfile(p);
     setMotos(m ?? []);
     setRutasCount(r?.length ?? 0);
+
+    const solicitudes = await getSolicitudesAmistad(session.access_token);
+    setSolicitudesCount(solicitudes.length);
+
+    if (p) getAmigosCount(p.username).then(setFriendCount);
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
   }
 
   async function handleLogout() {
@@ -101,7 +116,11 @@ export default function PerfilScreen() {
   const initials = `${profile.nombre.charAt(0)}${profile.apellidos?.charAt(0) ?? ''}`.toUpperCase();
 
   return (
-    <ScrollView style={s.scroll} contentContainerStyle={s.container}>
+    <ScrollView
+      style={s.scroll}
+      contentContainerStyle={s.container}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+    >
       {/* Avatar */}
       <View style={s.avatarSection}>
         <View style={s.avatarWrap}>
@@ -131,6 +150,10 @@ export default function PerfilScreen() {
           <Text style={s.statValue}>{motos.length}</Text>
           <Text style={s.statLabel}>Motos</Text>
         </View>
+        <TouchableOpacity style={[s.stat, s.statBorder]} onPress={() => router.push(`/amigos/${profile.username}` as any)}>
+          <Text style={s.statValue}>{friendCount}</Text>
+          <Text style={s.statLabel}>Amigos</Text>
+        </TouchableOpacity>
         <View style={s.stat}>
           <Text style={[s.statValue, { color: profile.online ? colors.success : colors.muted, fontSize: 12 }]}>
             {profile.online ? 'En línea' : 'Offline'}
@@ -166,6 +189,17 @@ export default function PerfilScreen() {
           <Ionicons name="pencil-outline" size={18} color={colors.foreground} />
           <Text style={s.actionText}>Editar perfil</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: 'auto' }} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.actionBtn} onPress={() => router.push('/solicitudes' as any)}>
+          <Ionicons name="person-add-outline" size={18} color={colors.foreground} />
+          <Text style={s.actionText}>Solicitudes de amistad</Text>
+          {solicitudesCount > 0 && (
+            <View style={[s.badge, { marginLeft: 'auto' }]}>
+              <Text style={s.badgeText}>{solicitudesCount}</Text>
+            </View>
+          )}
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: solicitudesCount > 0 ? 8 : 'auto' }} />
         </TouchableOpacity>
 
         <TouchableOpacity style={[s.actionBtn, s.logoutBtn]} onPress={handleLogout}>
@@ -205,4 +239,6 @@ const s = StyleSheet.create({
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface1, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 16 },
   actionText: { color: colors.foreground, fontSize: 15, fontWeight: '600' },
   logoutBtn: { borderColor: colors.danger + '40', backgroundColor: colors.danger + '10' },
+  badge: { backgroundColor: colors.primary, borderRadius: radius.full, minWidth: 22, height: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  badgeText: { color: colors.primaryFg, fontSize: 12, fontWeight: '800' },
 });

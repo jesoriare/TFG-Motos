@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -62,18 +62,26 @@ export default function RutaDetalleScreen() {
   const [puntuacion, setPuntuacion] = useState(0);
   const [comentario, setComentario] = useState('');
   const [enviandoVal, setEnviandoVal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id ?? null));
   }, []);
 
-  useEffect(() => {
-    fetch(`${API_URL}/rutas/${id}`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then((data: Ruta) => { setRuta(data); setLoading(false); })
-      .catch(() => setLoading(false));
+  const loadRuta = useCallback(async () => {
+    const r = await fetch(`${API_URL}/rutas/${id}`).catch(() => null);
+    if (r?.ok) setRuta(await r.json());
+    setLoading(false);
   }, [id]);
+
+  useEffect(() => { loadRuta(); }, [loadRuta]);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await loadRuta();
+    setRefreshing(false);
+  }
 
   useEffect(() => {
     if (!ruta?.waypoints?.length) return;
@@ -168,7 +176,11 @@ export default function RutaDetalleScreen() {
         )}
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      >
 
         {/* Mapa */}
         <View style={s.mapContainer}>
