@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Motos DB Schema" id="motos_db">
-    <mxGraphModel dx="1375" dy="823" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="710" dy="425" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -15,12 +15,6 @@
         </mxCell>
         <mxCell id="group_members_body" parent="group_members" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;overflow=hidden;rotatable=0;" value="PK group_id: uuid&lt;br&gt;PK user_id: uuid&lt;br&gt;joined_at: timestamptz" vertex="1">
           <mxGeometry height="64" width="210" y="26" as="geometry" />
-        </mxCell>
-        <mxCell id="locations" parent="1" style="swimlane;fontStyle=1;align=center;startSize=26;fillColor=#d5e8d4;strokeColor=#82b366;" value="locations" vertex="1">
-          <mxGeometry height="110" width="210" x="780" y="270" as="geometry" />
-        </mxCell>
-        <mxCell id="locations_body" parent="locations" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;overflow=hidden;rotatable=0;" value="PK user_id: uuid&lt;br&gt;lat: numeric&lt;br&gt;lng: numeric&lt;br&gt;updated_at: timestamptz" vertex="1">
-          <mxGeometry height="84" width="210" y="26" as="geometry" />
         </mxCell>
         <mxCell id="poi" parent="1" style="swimlane;fontStyle=1;align=center;startSize=26;fillColor=#d5e8d4;strokeColor=#82b366;" value="points_of_interest" vertex="1">
           <mxGeometry height="180" width="210" x="1080" y="270" as="geometry" />
@@ -184,24 +178,6 @@
             <mxPoint x="-10" y="14" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="rel_profiles_locations" edge="1" parent="1" source="profiles" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;endFill=0;fontSize=11;" target="locations" value="has">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="680" y="440" />
-              <mxPoint x="885" y="440" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="rel_profiles_locations_src" connectable="0" parent="rel_profiles_locations" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#666666;labelBackgroundColor=#ffffff;" value="1" vertex="1">
-          <mxGeometry relative="1" x="-1" y="-1" as="geometry">
-            <mxPoint x="-11" y="-40" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="rel_profiles_locations_tgt" connectable="0" parent="rel_profiles_locations" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#666666;labelBackgroundColor=#ffffff;" value="0..1" vertex="1">
-          <mxGeometry relative="1" x="1" y="-1" as="geometry">
-            <mxPoint x="-16" y="10" as="offset" />
-          </mxGeometry>
-        </mxCell>
         <mxCell id="rel_profiles_poi" edge="1" parent="1" source="profiles" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;endFill=0;fontSize=11;" target="poi" value="creates">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
@@ -255,6 +231,25 @@
         <mxCell id="rel_profiles_group_members_tgt" connectable="0" parent="rel_profiles_group_members" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#666666;labelBackgroundColor=#ffffff;" value="0..*" vertex="1">
           <mxGeometry relative="1" x="1" y="-1" as="geometry">
             <mxPoint x="9" y="20" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="auth_users" parent="1" style="swimlane;fontStyle=1;align=center;startSize=26;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" value="auth.users" vertex="1">
+          <mxGeometry height="110" width="220" x="475" y="780" as="geometry" />
+        </mxCell>
+        <mxCell id="auth_users_body" parent="auth_users" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;overflow=hidden;rotatable=0;" value="PK id: uuid&lt;br&gt;email: varchar&lt;br&gt;encrypted_password: varchar (bcrypt)&lt;br&gt;created_at: timestamptz" vertex="1">
+          <mxGeometry height="84" width="220" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_auth_profiles" edge="1" parent="1" source="auth_users" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;endFill=0;fontSize=11;dashed=1;strokeColor=#666666;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="profiles_body" value="authenticates">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_auth_profiles_src" connectable="0" parent="rel_auth_profiles" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#666666;labelBackgroundColor=#ffffff;" value="1" vertex="1">
+          <mxGeometry relative="1" x="-1" y="-1" as="geometry">
+            <mxPoint x="4" y="-10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rel_auth_profiles_tgt" connectable="0" parent="rel_auth_profiles" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#666666;labelBackgroundColor=#ffffff;" value="1" vertex="1">
+          <mxGeometry relative="1" x="1" y="-1" as="geometry">
+            <mxPoint x="4" y="20" as="offset" />
           </mxGeometry>
         </mxCell>
       </root>
