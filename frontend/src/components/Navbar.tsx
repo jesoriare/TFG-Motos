@@ -12,6 +12,7 @@ const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:30
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [solicitudesCount, setSolicitudesCount] = useState(0);
   const [noLeidosCount, setNoLeidosCount] = useState(0);
   const navigate = useNavigate();
@@ -23,14 +24,23 @@ export default function Navbar() {
     { label: "Incidencias", href: "/#incidencias" },
   ];
 
-  function syncUser() {
+  async function syncUser() {
     const me = getMe();
     setUser(me);
     if (me) {
       const token = getToken()!;
       loadSolicitudesCount(token);
       loadNoLeidosCount(token);
+      // Cargar avatar desde la API
+      try {
+        const res = await fetch(`${API_URL}/usuarios/${me.username}`);
+        if (res.ok) {
+          const data = await res.json();
+          setAvatarUrl(data.avatar_url ?? null);
+        }
+      } catch { /* ignorar */ }
     } else {
+      setAvatarUrl(null);
       setSolicitudesCount(0);
       setNoLeidosCount(0);
     }
@@ -108,7 +118,9 @@ export default function Navbar() {
               <div className="flex items-center gap-2">
                 <button onClick={() => navigate(`/perfil/${user.username}`)}
                   className="h-9 w-9 rounded-full border-2 border-primary overflow-hidden bg-surface-3 flex items-center justify-center hover:border-primary/70 transition-colors">
-                  <User className="h-4 w-4 text-muted-foreground" />
+                  {avatarUrl
+                    ? <img src={avatarUrl} alt={user.username} className="h-full w-full object-cover" />
+                    : <User className="h-4 w-4 text-muted-foreground" />}
                 </button>
                 <button onClick={() => navigate(`/perfil/${user.username}`)}
                   className="text-sm font-semibold text-foreground hover:text-primary transition-colors">
@@ -147,7 +159,9 @@ export default function Navbar() {
                 <button onClick={() => { setOpen(false); navigate(`/perfil/${user.username}`); }}
                   className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary transition-colors">
                   <div className="h-9 w-9 rounded-full border-2 border-primary overflow-hidden bg-surface-3 flex items-center justify-center">
-                    <User className="h-4 w-4 text-muted-foreground" />
+                    {avatarUrl
+                      ? <img src={avatarUrl} alt={user.username} className="h-full w-full object-cover" />
+                      : <User className="h-4 w-4 text-muted-foreground" />}
                   </div>
                   @{user.username}
                 </button>
