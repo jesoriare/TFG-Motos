@@ -5,7 +5,7 @@ import {
   Calendar, ArrowLeft, Bike, Clock, ChevronRight, Pencil,
   UserPlus, UserCheck, Check, X, MessageCircle
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { getMe, getToken, apiFetch } from "@/lib/api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -92,22 +92,20 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!username) return;
     async function load() {
-      const { data: p } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("username", username)
-        .single();
-
-      if (!p) { setNotFound(true); setLoading(false); return; }
+      const res = await fetch(`${API_URL}/usuarios/${username}`);
+      if (!res.ok) { setNotFound(true); setLoading(false); return; }
+      const p = await res.json();
       setProfile(p);
+      setMotos(p.motos ?? []);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      setIsOwn(session?.user?.id === p.id);
-      setLoggedIn(!!session);
+      const me = getMe();
+      const token = getToken();
+      setIsOwn(me?.id === p.id);
+      setLoggedIn(!!me);
 
-      if (session && session.user.id !== p.id) {
+      if (me && me.id !== p.id && token) {
         fetch(`${API_URL}/amistad/estado/${username}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
+          headers: { Authorization: `Bearer ${token}` },
         })
           .then(r => r.ok ? r.json() : null)
           .then(d => {
@@ -123,29 +121,15 @@ export default function ProfilePage() {
         .then(d => { if (d) setFriendCount(d.count); })
         .catch(() => {});
 
-      const [{ data: m }, { data: r }] = await Promise.all([
-        supabase.from("motos").select("marca_modelo, cilindrada, tipo").eq("user_id", p.id),
-        supabase.from("rutas")
-          .select("id, nombre, region, distancia_km, duracion_min, dificultad, tags, valoraciones_ruta(puntuacion)")
-          .eq("user_id", p.id)
-          .eq("publicada", true)
-          .order("created_at", { ascending: false }),
-      ]);
-
-      setMotos(m ?? []);
-      setRutas(r ?? []);
+      const rutasRes = await fetch(`${API_URL}/rutas?username=${encodeURIComponent(username!)}`);
+      if (rutasRes.ok) setRutas(await rutasRes.json());
       setLoading(false);
     }
     load();
   }, [username]);
 
-  async function getToken() {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
-  }
-
   async function handleEnviarSolicitud() {
-    const token = await getToken();
+    const token = getToken();
     if (!token || !username) return;
     setFriendLoading(true);
     const res = await fetch(`${API_URL}/amistad/${username}`, {
@@ -162,7 +146,7 @@ export default function ProfilePage() {
 
   async function handleAceptarSolicitud() {
     if (!friendRequestId) return;
-    const token = await getToken();
+    const token = getToken();
     if (!token) return;
     setFriendLoading(true);
     const res = await fetch(`${API_URL}/amistad/${friendRequestId}/aceptar`, {
@@ -175,7 +159,7 @@ export default function ProfilePage() {
 
   async function handleRechazarSolicitud() {
     if (!friendRequestId) return;
-    const token = await getToken();
+    const token = getToken();
     if (!token) return;
     setFriendLoading(true);
     const res = await fetch(`${API_URL}/amistad/${friendRequestId}/rechazar`, {
@@ -188,7 +172,7 @@ export default function ProfilePage() {
 
   async function handleEliminarRelacion() {
     if (!friendRequestId) return;
-    const token = await getToken();
+    const token = getToken();
     if (!token) return;
     setFriendLoading(true);
     const res = await fetch(`${API_URL}/amistad/${friendRequestId}`, {
@@ -200,7 +184,7 @@ export default function ProfilePage() {
   }
 
   async function handleAbrirChat() {
-    const token = await getToken();
+    const token = getToken();
     if (!token || !username) return;
     setChatLoading(true);
     const res = await fetch(`${API_URL}/chat/${username}`, {

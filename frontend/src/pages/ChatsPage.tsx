@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, MessageCircle, Trash2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { getToken } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import Navbar from "@/components/Navbar";
 
@@ -36,13 +36,8 @@ export default function ChatsPage() {
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function getToken() {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
-  }
-
   async function load() {
-    const token = await getToken();
+    const token = getToken();
     if (!token) { navigate("/entrar"); return; }
 
     const res = await fetch(`${API_URL}/chat`, {
@@ -56,7 +51,7 @@ export default function ChatsPage() {
 
   async function handleOcultar(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    const token = await getToken();
+    const token = getToken();
     if (!token) return;
     const res = await fetch(`${API_URL}/chat/${id}`, {
       method: "DELETE",

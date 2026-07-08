@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, X, UserCheck, Shield } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { getToken } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import Navbar from "@/components/Navbar";
 
@@ -25,13 +25,8 @@ export default function SolicitudesPage() {
   const [loading, setLoading] = useState(true);
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
-  async function getToken() {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
-  }
-
   async function load() {
-    const token = await getToken();
+    const token = getToken();
     if (!token) { navigate("/entrar"); return; }
 
     const res = await fetch(`${API_URL}/amistad/solicitudes`, {
@@ -44,7 +39,7 @@ export default function SolicitudesPage() {
   useEffect(() => { load(); }, []);
 
   async function handleAceptar(id: string) {
-    const token = await getToken();
+    const token = getToken();
     if (!token) return;
     setProcessingIds(prev => new Set(prev).add(id));
     const res = await fetch(`${API_URL}/amistad/${id}/aceptar`, {
@@ -56,7 +51,7 @@ export default function SolicitudesPage() {
   }
 
   async function handleRechazar(id: string) {
-    const token = await getToken();
+    const token = getToken();
     if (!token) return;
     setProcessingIds(prev => new Set(prev).add(id));
     const res = await fetch(`${API_URL}/amistad/${id}/rechazar`, {

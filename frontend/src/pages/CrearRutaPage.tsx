@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { MapPin, ArrowLeft, Route, MapPinned, Gauge, Clock, Mountain, Tag, X, Trash2, Search, ChevronDown } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { supabase } from "@/lib/supabase";
+import { getToken } from "@/lib/api";
 import { CIUDADES_ESPANA } from "@/data/ciudades-espana";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
@@ -153,23 +153,25 @@ export default function CrearRutaPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { navigate("/entrar"); return; }
+    const token = getToken();
+    if (!token) { navigate("/entrar"); return; }
     const duracion_min = (parseInt(form.horas || "0") * 60) + parseInt(form.minutos || "0");
-    const { error: err } = await supabase.from("rutas").insert({
-      user_id: session.user.id,
-      nombre: form.nombre,
-      region: form.region,
-      distancia_km: parseInt(form.distancia_km),
-      duracion_min,
-      dificultad: form.dificultad,
-      descripcion: form.descripcion || null,
-      tags: form.tags,
-      waypoints: waypoints.map(({ lat, lng }) => ({ lat, lng })),
-      avoid_highways: avoidHighways,
+    const res = await fetch(`${API_URL}/rutas`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        nombre: form.nombre,
+        region: form.region,
+        distancia_km: parseInt(form.distancia_km),
+        duracion_min,
+        dificultad: form.dificultad,
+        descripcion: form.descripcion || null,
+        tags: form.tags,
+        waypoints: waypoints.map(({ lat, lng }) => ({ lat, lng })),
+      }),
     });
     setLoading(false);
-    if (err) { setError(err.message); return; }
+    if (!res.ok) { const d = await res.json(); setError(d.error ?? "Error al crear la ruta"); return; }
     navigate("/");
   }
 

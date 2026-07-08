@@ -1,7 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
-const url = (import.meta.env.VITE_SUPABASE_URL as string) || 'https://placeholder.supabase.co';
-const key = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || 'placeholder';
-
-export const supabase = createClient(url, key);
-export const supabaseConfigured = url !== 'https://placeholder.supabase.co';
+// Migrado a MariaDB — usar src/lib/api.ts
+export const supabaseConfigured = false;
+export const supabase = null as any;

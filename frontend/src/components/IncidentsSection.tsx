@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AlertTriangle, Shield, Clock, Eye, CheckCircle, MapPin, ArrowRight, Trash2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { getMe, getToken } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -70,11 +70,6 @@ function timeAgo(dateStr: string) {
   return `Hace ${Math.floor(diff / 3600)}h`;
 }
 
-async function getToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
-}
-
 export default function IncidentsSection() {
   const { toast } = useToast();
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
@@ -104,15 +99,14 @@ export default function IncidentsSection() {
 
   useEffect(() => {
     fetchIncidencias();
-    supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user.id ?? null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUserId(session?.user.id ?? null);
-    });
-    return () => subscription.unsubscribe();
+    setUserId(getMe()?.id ?? null);
+    const syncUser = () => setUserId(getMe()?.id ?? null);
+    window.addEventListener('auth-change', syncUser);
+    return () => window.removeEventListener('auth-change', syncUser);
   }, []);
 
   async function handleConfirmar(id: string) {
-    const token = await getToken();
+    const token = getToken();
     if (!token) return;
     const res = await fetch(`${API_URL}/incidencias/${id}/confirmar`, {
       method: 'POST',
@@ -130,7 +124,7 @@ export default function IncidentsSection() {
   }
 
   async function handleEliminar(id: string) {
-    const token = await getToken();
+    const token = getToken();
     if (!token) return;
     const res = await fetch(`${API_URL}/incidencias/${id}`, {
       method: 'DELETE',
@@ -143,7 +137,7 @@ export default function IncidentsSection() {
     if (!form.descripcion || !form.via) return;
     setError(null);
     setEnviando(true);
-    const token = await getToken();
+    const token = getToken();
     if (!token) {
       setEnviando(false);
       setError('Debes iniciar sesión para reportar una incidencia.');
