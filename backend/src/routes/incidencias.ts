@@ -1,98 +1,85 @@
 import { Router } from 'express';
-import { supabase } from '../lib/supabase.js';
+import { pool } from '../lib/db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 const EXPIRY_HOURS = 4;
 
-// GET /incidencias — listar activas y no expiradas (RF-12.2)
+// GET /incidencias
 router.get('/', async (_req, res) => {
-  const { data, error } = await supabase
-    .from('incidencias')
-    .select(`
-      id, user_id, tipo, descripcion, via, severidad, confirmaciones, lat, lng, created_at, expires_at,
-      profiles!incidencias_user_id_fkey (username, avatar_url)
-    `)
-    .eq('activa', true)
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false });
+  const [rows] = await pool.execute<any[]>(`
+    SELECT i.id, i.user_id, i.tipo, i.descripcion, i.via, i.severidad, i.confirmaciones,
+           i.lat, i.lng, i.created_at, i.expires_at,
+           p.username, p.avatar_url
+    FROM incidencias i
+    JOIN profiles p ON p.id = i.user_id
+    WHERE i.activa = 1 AND i.expires_at > NOW()
+    ORDER BY i.created_at DESC
+  `);
 
-  if (error) { res.status(500).json({ error: error.message }); return; }
-  res.json(data);
+  res.json(rows.map(i => ({ ...i, profiles: { username: i.username, avatar_url: i.avatar_url } })));
 });
 
-// POST /incidencias — reportar incidencia (RF-12.1)
+// POST /incidencias
 router.post('/', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const { tipo, descripcion, via, severidad, lat, lng, expiry_hours } = req.body;
   const hours = Number(expiry_hours) || EXPIRY_HOURS;
-  const expires_at = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+  const expires_at = new Date(Date.now() + hours * 60 * 60 * 1000);
+  const id = uuidv4();
 
-  const { data, error } = await supabase
-    .from('incidencias')
-    .insert({ user_id: userId, tipo, descripcion, via, severidad, lat, lng, expires_at })
-    .select()
-    .single();
+  await pool.execute(
+    `INSERT INTO incidencias (id, user_id, tipo, descripcion, via, severidad, lat, lng, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, userId, tipo, descripcion, via, severidad ?? 'medium', lat, lng, expires_at]
+  );
 
-  if (error) { res.status(400).json({ error: error.message }); return; }
-  res.status(201).json(data);
+  const [rows] = await pool.execute<any[]>('SELECT * FROM incidencias WHERE id = ?', [id]);
+  res.status(201).json(rows[0]);
 });
 
-// POST /incidencias/:id/confirmar — confirmar o desconfirmar (RF-12.3)
+// POST /incidencias/:id/confirmar
 router.post('/:id/confirmar', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const incidenciaId = req.params.id;
 
-  const { data: existing } = await supabase
-    .from('confirmaciones_incidencia')
-    .select('incidencia_id')
-    .eq('incidencia_id', incidenciaId)
-    .eq('user_id', userId)
-    .maybeSingle();
+  const [existing] = await pool.execute<any[]>(
+    'SELECT incidencia_id FROM confirmaciones_incidencia WHERE incidencia_id = ? AND user_id = ?',
+    [incidenciaId, userId]
+  );
 
-  if (existing) {
-    await supabase
-      .from('confirmaciones_incidencia')
-      .delete()
-      .eq('incidencia_id', incidenciaId)
-      .eq('user_id', userId);
+  if (existing[0]) {
+    await pool.execute(
+      'DELETE FROM confirmaciones_incidencia WHERE incidencia_id = ? AND user_id = ?',
+      [incidenciaId, userId]
+    );
     res.json({ confirmado: false });
   } else {
-    await supabase
-      .from('confirmaciones_incidencia')
-      .insert({ incidencia_id: incidenciaId, user_id: userId });
+    await pool.execute(
+      'INSERT INTO confirmaciones_incidencia (incidencia_id, user_id) VALUES (?, ?)',
+      [incidenciaId, userId]
+    );
     res.json({ confirmado: true });
   }
 });
 
-// DELETE /incidencias/:id — eliminar manualmente (solo el autor) (RF-12.4)
+// DELETE /incidencias/:id
 router.delete('/:id', requireAuth, async (req, res) => {
-  const userId = res.locals.userId as string;
-
-  const { error } = await supabase
-    .from('incidencias')
-    .delete()
-    .eq('id', req.params.id)
-    .eq('user_id', userId);
-
-  if (error) { res.status(400).json({ error: error.message }); return; }
+  await pool.execute('DELETE FROM incidencias WHERE id = ? AND user_id = ?', [req.params.id, res.locals.userId]);
   res.status(204).send();
 });
 
-// PATCH /incidencias/:id/resolver — marcar como resuelta (solo el autor)
+// PATCH /incidencias/:id/resolver
 router.patch('/:id/resolver', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
-
-  const { data, error } = await supabase
-    .from('incidencias')
-    .update({ severidad: 'resolved', activa: false })
-    .eq('id', req.params.id)
-    .eq('user_id', userId)
-    .select()
-    .single();
-
-  if (error) { res.status(400).json({ error: error.message }); return; }
-  res.json(data);
+  await pool.execute(
+    "UPDATE incidencias SET severidad = 'resolved', activa = 0 WHERE id = ? AND user_id = ?",
+    [req.params.id, userId]
+  );
+  const [rows] = await pool.execute<any[]>('SELECT * FROM incidencias WHERE id = ?', [req.params.id]);
+  if (!rows[0]) { res.status(404).json({ error: 'Incidencia no encontrada' }); return; }
+  res.json(rows[0]);
 });
 
 export default router;

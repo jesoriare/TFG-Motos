@@ -1,7 +1,7 @@
 import { MapPin, Filter, Shield, X, Loader2, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getMe } from "@/lib/api";
 
 const API_URL = import.meta.env.VITE_API_URL as string || "http://localhost:3001";
 
@@ -29,7 +29,7 @@ export default function RidersSection() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id ?? null));
+    setCurrentUserId(getMe()?.id ?? null);
   }, []);
 
   const fetchRiders = useCallback(async (search: string, tipo: string) => {

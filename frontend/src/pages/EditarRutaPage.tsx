@@ -5,7 +5,7 @@ import { MapPin, ArrowLeft, Route, MapPinned, Gauge, Clock, Mountain, Tag, X, Tr
 import { Spinner } from "@/components/ui/spinner";
 import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { supabase } from "@/lib/supabase";
+import { getMe, getToken } from "@/lib/api";
 import { CIUDADES_ESPANA } from "@/data/ciudades-espana";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
@@ -92,8 +92,8 @@ export default function EditarRutaPage() {
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(async data => {
         // Verificar que el usuario actual es el autor
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session || session.user.id !== data.user_id) {
+        const me = getMe();
+        if (!me || me.id !== data.user_id) {
           navigate(`/rutas/${id}`);
           return;
         }
@@ -201,22 +201,25 @@ export default function EditarRutaPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { navigate("/entrar"); return; }
+    const token = getToken();
+    if (!token) { navigate("/entrar"); return; }
     const duracion_min = (parseInt(form.horas || "0") * 60) + parseInt(form.minutos || "0");
-    const { error: err } = await supabase.from("rutas").update({
-      nombre: form.nombre,
-      region: form.region,
-      distancia_km: parseInt(form.distancia_km),
-      duracion_min,
-      dificultad: form.dificultad,
-      descripcion: form.descripcion || null,
-      tags: form.tags,
-      waypoints,
-      avoid_highways: avoidHighways,
-    }).eq("id", id!).eq("user_id", session.user.id);
+    const res = await fetch(`${API_URL}/rutas/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        nombre: form.nombre,
+        region: form.region,
+        distancia_km: parseInt(form.distancia_km),
+        duracion_min,
+        dificultad: form.dificultad,
+        descripcion: form.descripcion || null,
+        tags: form.tags,
+        waypoints,
+      }),
+    });
     setLoading(false);
-    if (err) { setError(err.message); return; }
+    if (!res.ok) { const d = await res.json(); setError(d.error ?? "Error al actualizar"); return; }
     navigate(`/rutas/${id}`);
   }
 

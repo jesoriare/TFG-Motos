@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Users, Shield, Lock } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { getToken } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
@@ -27,11 +27,11 @@ export default function AmigosPage() {
   useEffect(() => {
     if (!username) return;
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setForbidden(true); setLoading(false); return; }
+      const token = getToken();
+      if (!token) { setForbidden(true); setLoading(false); return; }
 
       const res = await fetch(`${API_URL}/amistad/amigos/${username}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.status === 403) { setForbidden(true); setLoading(false); return; }

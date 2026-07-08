@@ -8,7 +8,7 @@ import {
   ArrowLeft, MapPin, Route, Clock, Gauge, Mountain, Tag,
   Star, Shield, User, AlertCircle, Pencil,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { getMe, getToken } from "@/lib/api";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
 
@@ -85,7 +85,7 @@ export default function RutaDetallePage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id ?? null));
+    setCurrentUserId(getMe()?.id ?? null);
   }, []);
 
   useEffect(() => {

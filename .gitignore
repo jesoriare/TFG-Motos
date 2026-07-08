@@ -37,6 +37,9 @@ backend/dist
 # Workspace metadata
 .workspace/
 
+# Avatars subidos por usuarios
+backend/uploads/
+
 # Environment files
 .env
 .env.local

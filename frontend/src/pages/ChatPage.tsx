@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { getMe, getToken } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
@@ -34,26 +34,31 @@ export default function ChatPage() {
   const [texto, setTexto] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  async function getToken() {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
-  }
+  const fetchMensajes = useCallback(async (token: string) => {
+    const res = await fetch(`${API_URL}/chat/${id}/mensajes`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) {
+      const data: Mensaje[] = await res.json();
+      setMensajes(prev => {
+        if (prev.length === data.length && prev.every((m, i) => m.id === data[i].id)) return prev;
+        return data;
+      });
+    }
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
 
-    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const me = getMe();
+    const token = getToken();
+    if (!me || !token) { navigate("/entrar"); return; }
+    setCurrentUserId(me.id);
 
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { navigate("/entrar"); return; }
-      setCurrentUserId(session.user.id);
-      const token = session.access_token;
-
       const [listRes, mensajesRes] = await Promise.all([
-        fetch(`${API_URL}/chat`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_URL}/chat/${id}/mensajes`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/chat`, { headers: { Authorization: `Bearer ${token!}` } }),
+        fetch(`${API_URL}/chat/${id}/mensajes`, { headers: { Authorization: `Bearer ${token!}` } }),
       ]);
 
       if (listRes.ok) {
@@ -67,39 +72,30 @@ export default function ChatPage() {
 
       setLoading(false);
 
-      await fetch(`${API_URL}/chat/abierto`, {
+      // Marcar conversación como abierta
+      fetch(`${API_URL}/chat/abierto`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token!}` },
         body: JSON.stringify({ conversacionId: id }),
       });
 
-      channel = supabase
-        .channel(`mensajes-${id}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "mensajes", filter: `conversacion_id=eq.${id}` },
-          (payload) => {
-            const nuevo = payload.new as Mensaje;
-            setMensajes(prev => prev.some(m => m.id === nuevo.id) ? prev : [...prev, nuevo]);
-          }
-        )
-        .subscribe();
+      // Polling cada 2 segundos para nuevos mensajes
+      pollingRef.current = setInterval(() => fetchMensajes(token!), 2000);
     }
 
     load();
 
     return () => {
-      if (channel) supabase.removeChannel(channel);
-      getToken().then(token => {
-        if (!token) return;
-        fetch(`${API_URL}/chat/abierto`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ conversacionId: null }),
-        });
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      const t = getToken();
+      if (!t) return;
+      fetch(`${API_URL}/chat/abierto`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+        body: JSON.stringify({ conversacionId: null }),
       });
     };
-  }, [id, navigate]);
+  }, [id, navigate, fetchMensajes]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -109,7 +105,7 @@ export default function ChatPage() {
     e.preventDefault();
     const contenido = texto.trim();
     if (!contenido || sending) return;
-    const token = await getToken();
+    const token = getToken();
     if (!token) return;
 
     setSending(true);
@@ -143,18 +139,12 @@ export default function ChatPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
-          <button
-            onClick={() => navigate("/chats")}
-            className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-          >
+          <button onClick={() => navigate("/chats")} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </button>
 
           {interlocutor && (
-            <button
-              onClick={() => navigate(`/perfil/${interlocutor.username}`)}
-              className="flex items-center gap-3 min-w-0"
-            >
+            <button onClick={() => navigate(`/perfil/${interlocutor.username}`)} className="flex items-center gap-3 min-w-0">
               <div className="relative h-10 w-10 rounded-xl overflow-hidden bg-primary/20 flex items-center justify-center text-sm font-display font-bold text-primary flex-shrink-0">
                 {interlocutor.avatar_url
                   ? <img src={interlocutor.avatar_url} alt={interlocutor.username} className="h-full w-full object-cover" />
@@ -199,17 +189,12 @@ export default function ChatPage() {
       <form onSubmit={handleEnviar} className="fixed bottom-0 left-0 right-0 border-t border-border/50 bg-background/95 backdrop-blur-md px-4 py-3">
         <div className="mx-auto max-w-2xl flex items-center gap-2">
           <input
-            type="text"
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
+            type="text" value={texto} onChange={(e) => setTexto(e.target.value)}
             placeholder="Escribe un mensaje..."
             className="flex-1 rounded-lg border border-border surface-2 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50"
           />
-          <button
-            type="submit"
-            disabled={!texto.trim() || sending}
-            className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary text-primary-foreground disabled:opacity-50 hover:opacity-90 transition-opacity flex-shrink-0"
-          >
+          <button type="submit" disabled={!texto.trim() || sending}
+            className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary text-primary-foreground disabled:opacity-50 hover:opacity-90 transition-opacity flex-shrink-0">
             <Send className="h-4 w-4" />
           </button>
         </div>
