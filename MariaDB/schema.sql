@@ -1,8 +1,38 @@
 -- ============================================================
--- RodadaMoto — Schema MariaDB
--- Ejecutar en HeidiSQL sobre la base de datos rodadamoto
--- Requiere MariaDB 10.3.3+ (expression defaults)
+-- RodadaMoto — Schema completo MariaDB
+-- Base de datos: tfg_db
+-- Ejecutar en HeidiSQL: selecciona tfg_db y abre este archivo
+-- Requiere MariaDB 10.3.3+
 -- ============================================================
+
+-- ============================================================
+-- LIMPIEZA PREVIA (por si ya existen tablas)
+-- ============================================================
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TRIGGER IF EXISTS trg_sync_confirmaciones_insert;
+DROP TRIGGER IF EXISTS trg_sync_confirmaciones_delete;
+DROP TRIGGER IF EXISTS trg_sync_conversacion_on_mensaje;
+
+DROP TABLE IF EXISTS conversaciones_ocultas;
+DROP TABLE IF EXISTS mensajes;
+DROP TABLE IF EXISTS conversaciones;
+DROP TABLE IF EXISTS solicitudes_amistad;
+DROP TABLE IF EXISTS confirmaciones_incidencia;
+DROP TABLE IF EXISTS incidencias;
+DROP TABLE IF EXISTS rutas_favoritas;
+DROP TABLE IF EXISTS valoraciones_ruta;
+DROP TABLE IF EXISTS rutas;
+DROP TABLE IF EXISTS motos;
+DROP TABLE IF EXISTS puntos_interes;
+DROP TABLE IF EXISTS ubicaciones;
+DROP TABLE IF EXISTS miembros_grupo;
+DROP TABLE IF EXISTS grupos;
+DROP TABLE IF EXISTS profiles;
+DROP TABLE IF EXISTS users;
+
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
 -- USERS (reemplaza Supabase Auth)
@@ -55,18 +85,19 @@ CREATE TABLE motos (
 -- ============================================================
 
 CREATE TABLE rutas (
-  id           CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
-  user_id      CHAR(36)     NOT NULL,
-  nombre       VARCHAR(255) NOT NULL,
-  region       VARCHAR(255) NOT NULL,
-  distancia_km INT          NOT NULL CHECK (distancia_km > 0),
-  duracion_min INT          NOT NULL CHECK (duracion_min > 0),
-  dificultad   ENUM('facil','media','media_alta','alta') NOT NULL DEFAULT 'media',
-  descripcion  TEXT,
-  tags         JSON         NOT NULL DEFAULT ('[]'),
-  waypoints    JSON         NOT NULL DEFAULT ('[]'),
-  publicada    TINYINT(1)   NOT NULL DEFAULT 1,
-  created_at   DATETIME     NOT NULL DEFAULT NOW(),
+  id             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  user_id        CHAR(36)     NOT NULL,
+  nombre         VARCHAR(255) NOT NULL,
+  region         VARCHAR(255) NOT NULL,
+  distancia_km   INT          NOT NULL CHECK (distancia_km > 0),
+  duracion_min   INT          NOT NULL CHECK (duracion_min > 0),
+  dificultad     ENUM('facil','media','media_alta','alta') NOT NULL DEFAULT 'media',
+  descripcion    TEXT,
+  tags           JSON         NOT NULL DEFAULT ('[]'),
+  waypoints      JSON         NOT NULL DEFAULT ('[]'),
+  avoid_highways TINYINT(1)   NOT NULL DEFAULT 0,
+  publicada      TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at     DATETIME     NOT NULL DEFAULT NOW(),
   FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
