@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, ArrowLeft, User, AtSign, Bike, Gauge, MapPinned, ChevronsUpDown, Check } from "lucide-react";
+import { MapPin, ArrowLeft, User, AtSign, Bike, Gauge, MapPinned, ChevronsUpDown, Check, Camera, Loader2 } from "lucide-react";
 import { getMe, getToken, apiFetch } from "@/lib/api";
+
+const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
 import { CIUDADES_ESPANA } from "@/data/ciudades-espana";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -11,6 +13,7 @@ export default function EditProfilePage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [zonaOpen, setZonaOpen] = useState(false);
@@ -42,6 +45,34 @@ export default function EditProfilePage() {
     }
     loadProfile();
   }, [navigate]);
+
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const token = getToken();
+    if (!token) return;
+
+    setUploadingAvatar(true);
+    setError(null);
+
+    const body = new FormData();
+    body.append("avatar", file);
+
+    const res = await fetch(`${API_URL}/upload/avatar`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    });
+
+    if (res.ok) {
+      const { url } = await res.json();
+      setForm(prev => ({ ...prev, avatar_url: url }));
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setError(d.error ?? "Error al subir la imagen");
+    }
+    setUploadingAvatar(false);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -122,14 +153,23 @@ export default function EditProfilePage() {
           </div>
 
           {/* Avatar preview */}
-          <div className="flex justify-center mb-6">
-            <div className="h-24 w-24 rounded-full border-4 border-primary overflow-hidden bg-surface-3 flex items-center justify-center">
-              {form.avatar_url ? (
-                <img src={form.avatar_url} alt="Avatar" className="h-full w-full object-cover" onError={() => setForm(p => ({ ...p, avatar_url: "" }))} />
-              ) : (
-                <User className="h-10 w-10 text-muted-foreground" />
-              )}
-            </div>
+          <div className="flex flex-col items-center mb-6 gap-2">
+            <label className="relative cursor-pointer group">
+              <div className="h-24 w-24 rounded-full border-4 border-primary overflow-hidden bg-surface-3 flex items-center justify-center">
+                {uploadingAvatar ? (
+                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                ) : form.avatar_url ? (
+                  <img src={form.avatar_url} alt="Avatar" className="h-full w-full object-cover" onError={() => setForm(p => ({ ...p, avatar_url: "" }))} />
+                ) : (
+                  <User className="h-10 w-10 text-muted-foreground" />
+                )}
+              </div>
+              <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Camera className="h-7 w-7 text-white" />
+              </div>
+              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} disabled={uploadingAvatar} />
+            </label>
+            <p className="text-xs text-muted-foreground">Pulsa para cambiar la foto</p>
           </div>
 
           <div className="card-surface rounded-xl p-6 sm:p-8">
