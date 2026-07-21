@@ -5,32 +5,59 @@ import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
-// GET /usuarios/:username — perfil público
-router.get('/:username', async (req, res) => {
+function toProfileJson(profile: any, motos: any[]) {
+  return {
+    ...profile,
+    verified: !!profile.verified,
+    online: !!profile.online,
+    motos: motos.map(m => ({ ...m, principal: !!m.principal })),
+  };
+}
+
+// GET /usuarios/me — perfil propio (por id, no depende del username del JWT)
+// NOTA: debe declararse antes de GET /:username, si no Express la capturaría como username="me"
+router.get('/me', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+
   const [profiles] = await pool.execute<any[]>(
-    'SELECT id, nombre, apellidos, username, avatar_url, zona, verified, online, last_seen, created_at FROM profiles WHERE username = ?',
-    [req.params.username]
+    'SELECT id, nombre, apellidos, username, avatar_url, zona, verified, online, last_seen, created_at FROM profiles WHERE id = ?',
+    [userId]
   );
   if (!profiles[0]) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
 
   const profile = profiles[0];
   const [motos] = await pool.execute<any[]>(
     'SELECT id, marca_modelo, cilindrada, tipo, principal FROM motos WHERE user_id = ?',
-    [profile.id]
+    [userId]
   );
 
-  res.json({ ...profile, motos });
+  res.json(toProfileJson(profile, motos));
+});
+
+// PATCH /usuarios/me/estado — marcar online/offline
+router.patch('/me/estado', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const online = !!req.body?.online;
+  await pool.execute('UPDATE profiles SET online = ?, last_seen = NOW() WHERE id = ?', [online, userId]);
+  res.json({ ok: true });
 });
 
 // PUT /usuarios/me — actualizar perfil (y moto principal opcionalmente)
 router.put('/me', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
-  const { nombre, apellidos, zona, avatar_url, marca_modelo, cilindrada } = req.body;
+  const { nombre, apellidos, username, zona, avatar_url, marca_modelo, cilindrada } = req.body;
 
-  await pool.execute(
-    'UPDATE profiles SET nombre = ?, apellidos = ?, zona = ?, avatar_url = ? WHERE id = ?',
-    [nombre, apellidos, zona ?? null, avatar_url ?? null, userId]
-  );
+  try {
+    await pool.execute(
+      'UPDATE profiles SET nombre = ?, apellidos = ?, username = ?, zona = ?, avatar_url = ? WHERE id = ?',
+      [nombre, apellidos, username, zona ?? null, avatar_url ?? null, userId]
+    );
+  } catch (err: any) {
+    if (err.code === 'ER_DUP_ENTRY') { res.status(409).json({ error: 'El nombre de usuario ya existe' }); return; }
+    console.error(err);
+    res.status(500).json({ error: 'Error al actualizar el perfil' });
+    return;
+  }
 
   if (marca_modelo && cilindrada) {
     const [existing] = await pool.execute<any[]>(
@@ -51,7 +78,28 @@ router.put('/me', requireAuth, async (req, res) => {
   }
 
   const [rows] = await pool.execute<any[]>('SELECT * FROM profiles WHERE id = ?', [userId]);
-  res.json(rows[0]);
+  const [motosActualizadas] = await pool.execute<any[]>(
+    'SELECT id, marca_modelo, cilindrada, tipo, principal FROM motos WHERE user_id = ?',
+    [userId]
+  );
+  res.json(toProfileJson(rows[0], motosActualizadas));
+});
+
+// GET /usuarios/:username — perfil público
+router.get('/:username', async (req, res) => {
+  const [profiles] = await pool.execute<any[]>(
+    'SELECT id, nombre, apellidos, username, avatar_url, zona, verified, online, last_seen, created_at FROM profiles WHERE username = ?',
+    [req.params.username]
+  );
+  if (!profiles[0]) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
+
+  const profile = profiles[0];
+  const [motos] = await pool.execute<any[]>(
+    'SELECT id, marca_modelo, cilindrada, tipo, principal FROM motos WHERE user_id = ?',
+    [profile.id]
+  );
+
+  res.json(toProfileJson(profile, motos));
 });
 
 // PATCH /usuarios/me/push-token

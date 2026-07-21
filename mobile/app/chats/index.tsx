@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { View, Text, FlatList, Image, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
 import { getConversaciones, ocultarConversacion } from '@/lib/api';
 
@@ -33,9 +33,9 @@ export default function ChatsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { router.replace('/entrar'); return; }
-    setConversaciones(await getConversaciones(session.access_token));
+    setConversaciones(await getConversaciones(session.token));
     setLoading(false);
   }, [router]);
 
@@ -48,9 +48,9 @@ export default function ChatsScreen() {
   }
 
   async function handleOcultar(id: string) {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) return;
-    if (await ocultarConversacion(id, session.access_token)) {
+    if (await ocultarConversacion(id, session.token)) {
       setConversaciones(prev => prev.filter(c => c.id !== id));
     }
   }

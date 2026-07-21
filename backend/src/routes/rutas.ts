@@ -75,14 +75,14 @@ router.get('/:id', async (req, res) => {
 // POST /rutas
 router.post('/', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
-  const { nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints } = req.body;
+  const { nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints, avoid_highways } = req.body;
   const id = uuidv4();
 
   await pool.execute(
-    `INSERT INTO rutas (id, user_id, nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO rutas (id, user_id, nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints, avoid_highways)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, userId, nombre, region, distancia_km, duracion_min, dificultad ?? 'media',
-     descripcion ?? null, JSON.stringify(tags ?? []), JSON.stringify(waypoints ?? [])]
+     descripcion ?? null, JSON.stringify(tags ?? []), JSON.stringify(waypoints ?? []), !!avoid_highways]
   );
 
   const [rows] = await pool.execute<any[]>('SELECT * FROM rutas WHERE id = ?', [id]);
@@ -95,16 +95,16 @@ router.post('/', requireAuth, async (req, res) => {
 // PUT /rutas/:id
 router.put('/:id', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
-  const { nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints } = req.body;
+  const { nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints, avoid_highways } = req.body;
 
   const [check] = await pool.execute<any[]>('SELECT id FROM rutas WHERE id = ? AND user_id = ?', [req.params.id, userId]);
   if (!check[0]) { res.status(404).json({ error: 'Ruta no encontrada o sin permiso' }); return; }
 
   await pool.execute(
     `UPDATE rutas SET nombre = ?, region = ?, distancia_km = ?, duracion_min = ?,
-     dificultad = ?, descripcion = ?, tags = ?, waypoints = ? WHERE id = ? AND user_id = ?`,
+     dificultad = ?, descripcion = ?, tags = ?, waypoints = ?, avoid_highways = ? WHERE id = ? AND user_id = ?`,
     [nombre, region, distancia_km, duracion_min, dificultad, descripcion ?? null,
-     JSON.stringify(tags ?? []), JSON.stringify(waypoints ?? []), req.params.id, userId]
+     JSON.stringify(tags ?? []), JSON.stringify(waypoints ?? []), !!avoid_highways, req.params.id, userId]
   );
 
   const [rows] = await pool.execute<any[]>('SELECT * FROM rutas WHERE id = ?', [req.params.id]);

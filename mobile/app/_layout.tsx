@@ -3,7 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { supabase } from '@/lib/supabase';
+import { getSession, subscribe } from '@/lib/auth';
 import { colors } from '@/constants/theme';
 import { registerForPushNotificationsAsync } from '@/lib/notifications';
 
@@ -12,16 +12,16 @@ export default function RootLayout() {
   const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getSession().then((session) => {
       setReady(true);
-      if (session) registerForPushNotificationsAsync(session.access_token);
+      if (session) registerForPushNotificationsAsync(session.token);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session) registerForPushNotificationsAsync(session.access_token);
+    const unsubscribe = subscribe((session) => {
+      if (session) registerForPushNotificationsAsync(session.token);
     });
 
-    return () => subscription.unsubscribe();
+    return unsubscribe;
   }, []);
 
   useEffect(() => {

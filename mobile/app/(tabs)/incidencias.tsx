@@ -4,8 +4,8 @@ import {
   TouchableOpacity, Modal, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getIncidencias, confirmarIncidencia, eliminarIncidencia } from '@/lib/api';
-import { supabase } from '@/lib/supabase';
+import { getIncidencias, confirmarIncidencia, eliminarIncidencia, crearIncidencia } from '@/lib/api';
+import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
 import ChatAccess from '@/components/ChatAccess';
 
@@ -76,13 +76,13 @@ export default function IncidenciasScreen() {
 
   useEffect(() => {
     fetchIncidencias();
-    supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id ?? null));
+    getSession().then((session) => setCurrentUserId(session?.user.id ?? null));
   }, []);
 
   async function handleConfirmar(id: string) {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { Alert.alert('Inicia sesión', 'Debes iniciar sesión para confirmar'); return; }
-    const result = await confirmarIncidencia(id, session.access_token);
+    const result = await confirmarIncidencia(id, session.token);
     if (result) {
       setConfirmedIds(prev => {
         const next = new Set(prev);
@@ -94,13 +94,13 @@ export default function IncidenciasScreen() {
   }
 
   async function handleEliminar(id: string) {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) return;
     Alert.alert('Eliminar incidencia', '¿Seguro que quieres eliminarla?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar', style: 'destructive', onPress: async () => {
-          const ok = await eliminarIncidencia(id, session.access_token);
+          const ok = await eliminarIncidencia(id, session.token);
           if (ok) setIncidencias(prev => prev.filter(i => i.id !== id));
         },
       },
@@ -114,26 +114,24 @@ export default function IncidenciasScreen() {
     }
     setEnviando(true);
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) {
       Alert.alert('Inicia sesión', 'Debes iniciar sesión para reportar una incidencia');
       setEnviando(false);
       return;
     }
 
-    const expires_at = new Date(Date.now() + form.expiry_hours * 60 * 60 * 1000).toISOString();
-    const { error } = await supabase.from('incidencias').insert({
-      user_id: session.user.id,
+    const { error } = await crearIncidencia({
       tipo: form.tipo,
       descripcion: form.descripcion,
       via: form.via,
       severidad: form.severidad,
-      expires_at,
       lat: 0, lng: 0,
-    });
+      expiry_hours: form.expiry_hours,
+    }, session.token);
 
     setEnviando(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert('Error', error); return; }
 
     setModalVisible(false);
     setForm({ tipo: 'control_gc', descripcion: '', via: '', severidad: 'medium', expiry_hours: 2 });

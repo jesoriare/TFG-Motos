@@ -3,7 +3,7 @@ import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Activity
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getRiders } from '@/lib/api';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
 import ChatAccess from '@/components/ChatAccess';
 
@@ -26,7 +26,7 @@ export default function MoteroScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id ?? null));
+    getSession().then((session) => setCurrentUserId(session?.user.id ?? null));
   }, []);
 
   const fetch = useCallback(async (q: string, t: string) => {

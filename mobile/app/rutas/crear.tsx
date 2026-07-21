@@ -7,7 +7,8 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
+import { crearRuta } from '@/lib/api';
 import { Spinner } from '@/components/Spinner';
 import { colors, radius } from '@/constants/theme';
 import { CIUDADES_ESPANA } from '@/data/ciudades-espana';
@@ -136,11 +137,10 @@ export default function CrearRutaScreen() {
       return;
     }
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { Alert.alert('Error', 'Debes iniciar sesión'); setLoading(false); return; }
     const duracion_min = (parseInt(form.horas || '0') * 60) + parseInt(form.minutos || '0');
-    const { error } = await supabase.from('rutas').insert({
-      user_id: session.user.id,
+    const { error } = await crearRuta({
       nombre: form.nombre,
       region: form.region,
       distancia_km: parseInt(form.distancia_km),
@@ -150,9 +150,9 @@ export default function CrearRutaScreen() {
       tags: form.tags,
       waypoints: waypoints.map(({ lat, lng }) => ({ lat, lng })),
       avoid_highways: avoidHighways,
-    });
+    }, session.token);
     setLoading(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert('Error', error); return; }
     Alert.alert('¡Ruta publicada!', 'Tu ruta ya está disponible para la comunidad', [
       { text: 'OK', onPress: () => router.back() },
     ]);

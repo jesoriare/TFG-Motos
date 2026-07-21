@@ -7,9 +7,8 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import { decode } from 'base64-arraybuffer';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
+import { getMe, actualizarPerfil, subirAvatar } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
 import { CIUDADES_ESPANA } from '@/data/ciudades-espana';
 
@@ -18,7 +17,6 @@ export default function EditarPerfilScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [motoId, setMotoId] = useState<string | null>(null);
   const [ciudadModal, setCiudadModal] = useState(false);
   const [ciudadQuery, setCiudadQuery] = useState('');
   const [form, setForm] = useState({
@@ -28,13 +26,11 @@ export default function EditarPerfilScreen() {
 
   useEffect(() => {
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSession();
       if (!session) { router.replace('/entrar'); return; }
 
-      const [{ data: p }, { data: m }] = await Promise.all([
-        supabase.from('profiles').select('nombre,apellidos,username,zona,avatar_url').eq('id', session.user.id).single(),
-        supabase.from('motos').select('id,marca_modelo,cilindrada').eq('user_id', session.user.id).eq('principal', true).single(),
-      ]);
+      const p = await getMe(session.token);
+      const m = (p?.motos ?? []).find((mo: any) => mo.principal) ?? null;
 
       if (p) setForm({
         nombre: p.nombre ?? '', apellidos: p.apellidos ?? '',
@@ -43,7 +39,6 @@ export default function EditarPerfilScreen() {
         marca_modelo: m?.marca_modelo ?? '',
         cilindrada: m?.cilindrada?.toString() ?? '',
       });
-      if (m) setMotoId(m.id);
       setLoading(false);
     }
     load();
@@ -69,67 +64,37 @@ export default function EditarPerfilScreen() {
 
     if (result.canceled) return;
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) return;
 
     setUploadingAvatar(true);
 
-    const uri = result.assets[0].uri;
-    const ext = uri.split('.').pop() ?? 'jpg';
-    const path = `${session.user.id}/avatar.${ext}`;
+    const { error, url } = await subirAvatar(result.assets[0].uri, session.token);
 
-    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
-    const arrayBuffer = decode(base64);
-
-    const { error } = await supabase.storage.from('avatars').upload(path, arrayBuffer, {
-      contentType: `image/${ext}`,
-      upsert: true,
-    });
-
-    if (error) {
-      Alert.alert('Error', 'No se pudo subir la imagen: ' + error.message);
+    if (error || !url) {
+      Alert.alert('Error', 'No se pudo subir la imagen: ' + (error ?? ''));
       setUploadingAvatar(false);
       return;
     }
 
-    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
-    const urlConCache = `${publicUrl}?t=${Date.now()}`;
-
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ avatar_url: urlConCache })
-      .eq('id', session.user.id);
-
-    if (updateError) {
-      Alert.alert('Error al guardar', updateError.message);
-      setUploadingAvatar(false);
-      return;
-    }
-
-    set('avatar_url')(urlConCache);
+    set('avatar_url')(url);
     setUploadingAvatar(false);
   }
 
   async function handleSave() {
     setSaving(true);
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) return;
 
-    const { error } = await supabase.from('profiles').update({
+    const { error } = await actualizarPerfil({
       nombre: form.nombre, apellidos: form.apellidos,
       username: form.username, zona: form.zona || null,
       avatar_url: form.avatar_url || null,
-    }).eq('id', session.user.id);
+      marca_modelo: form.marca_modelo || undefined,
+      cilindrada: form.cilindrada || undefined,
+    }, session.token);
 
-    if (error) { Alert.alert('Error', error.message); setSaving(false); return; }
-
-    if (form.marca_modelo && form.cilindrada) {
-      if (motoId) {
-        await supabase.from('motos').update({ marca_modelo: form.marca_modelo, cilindrada: parseInt(form.cilindrada) }).eq('id', motoId);
-      } else {
-        await supabase.from('motos').insert({ user_id: session.user.id, marca_modelo: form.marca_modelo, cilindrada: parseInt(form.cilindrada), principal: true });
-      }
-    }
+    if (error) { Alert.alert('Error', error); setSaving(false); return; }
 
     setSaving(false);
     Alert.alert('¡Listo!', 'Perfil actualizado', [{ text: 'OK', onPress: () => router.back() }]);

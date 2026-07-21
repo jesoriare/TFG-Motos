@@ -7,7 +7,8 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
+import { actualizarRuta } from '@/lib/api';
 import { Spinner } from '@/components/Spinner';
 import { colors, radius } from '@/constants/theme';
 import { CIUDADES_ESPANA } from '@/data/ciudades-espana';
@@ -73,9 +74,9 @@ export default function EditarRutaScreen() {
   useEffect(() => {
     async function load() {
       try {
-        const [res, { data: { session } }] = await Promise.all([
+        const [res, session] = await Promise.all([
           fetch(`${API_URL}/rutas/${id}`),
-          supabase.auth.getSession(),
+          getSession(),
         ]);
         if (!res.ok) throw new Error();
         const data = await res.json();
@@ -197,10 +198,10 @@ export default function EditarRutaScreen() {
       return;
     }
     setSaving(true);
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { Alert.alert('Error', 'Debes iniciar sesión'); setSaving(false); return; }
     const duracion_min = (parseInt(form.horas || '0') * 60) + parseInt(form.minutos || '0');
-    const { error } = await supabase.from('rutas').update({
+    const { error } = await actualizarRuta(id!, {
       nombre: form.nombre,
       region: form.region,
       distancia_km: parseInt(form.distancia_km),
@@ -210,9 +211,9 @@ export default function EditarRutaScreen() {
       tags: form.tags,
       waypoints: waypoints.map(({ lat, lng }) => ({ lat, lng })),
       avoid_highways: avoidHighways,
-    }).eq('id', id!).eq('user_id', session.user.id);
+    }, session.token);
     setSaving(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert('Error', error); return; }
     router.replace(`/rutas/${id}` as any);
   }
 

@@ -2,7 +2,8 @@ import { useCallback, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, RefreshControl } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
+import { getMe } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
 import ChatAccess from '@/components/ChatAccess';
 
@@ -20,10 +21,10 @@ export default function InicioScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { setLoggedIn(false); return; }
     setLoggedIn(true);
-    const { data } = await supabase.from('profiles').select('username, avatar_url').eq('id', session.user.id).single();
+    const data = await getMe(session.token);
     if (data) { setUsername(data.username); setAvatarUrl(data.avatar_url); }
   }, []);
 

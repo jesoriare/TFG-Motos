@@ -6,7 +6,8 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
+import { valorarRuta } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -66,7 +67,7 @@ export default function RutaDetalleScreen() {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id ?? null));
+    getSession().then((session) => setCurrentUserId(session?.user.id ?? null));
   }, []);
 
   const loadRuta = useCallback(async () => {
@@ -111,14 +112,12 @@ export default function RutaDetalleScreen() {
 
   async function handleValorar() {
     if (puntuacion === 0) { Alert.alert('Selecciona una puntuación'); return; }
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { Alert.alert('Debes iniciar sesión'); return; }
     setEnviandoVal(true);
-    const { error } = await supabase.from('valoraciones_ruta').upsert({
-      ruta_id: id, user_id: session.user.id, puntuacion, comentario: comentario || null,
-    });
+    const { error } = await valorarRuta(id!, puntuacion, comentario || null, session.token);
     setEnviandoVal(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert('Error', error); return; }
     Alert.alert('¡Gracias!', 'Valoración enviada');
     setPuntuacion(0); setComentario('');
     fetch(`${API_URL}/rutas/${id}`)

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Defs, Pattern, Rect, Line } from 'react-native-svg';
-import { supabase } from '@/lib/supabase';
+import { getMapaRiders, getIncidencias } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
 import ChatAccess from '@/components/ChatAccess';
 
@@ -38,12 +38,12 @@ export default function MapaScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [{ data: ubicData }, { data: incData }] = await Promise.all([
-      supabase.from('ubicaciones').select('user_id, lat, lng, profiles(username, online, motos(marca_modelo))'),
-      supabase.from('incidencias').select('id, tipo, via, severidad').eq('activa', true).gt('expires_at', new Date().toISOString()),
+    const [ubicData, incData] = await Promise.all([
+      getMapaRiders(),
+      getIncidencias(),
     ]);
-    if (ubicData) setRiders(ubicData as unknown as LiveRider[]);
-    if (incData) setIncidencias(incData as Incidencia[]);
+    setRiders(ubicData as unknown as LiveRider[]);
+    setIncidencias(incData as Incidencia[]);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

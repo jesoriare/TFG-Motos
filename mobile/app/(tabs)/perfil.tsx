@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Alert, RefreshControl } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession, subscribe } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
-import { getSolicitudesAmistad, getAmigosCount } from '@/lib/api';
+import { getSolicitudesAmistad, getAmigosCount, getMe, getRutas, logout } from '@/lib/api';
 import ChatAccess from '@/components/ChatAccess';
 
 function SinSesion() {
@@ -55,11 +55,11 @@ export default function PerfilScreen() {
   }, []));
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+    const unsubscribe = subscribe((session) => {
       if (!session) { setSinSesion(true); setProfile(null); }
       else { setSinSesion(false); load(); }
     });
-    return () => subscription.unsubscribe();
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -69,23 +69,21 @@ export default function PerfilScreen() {
   if (sinSesion) return null;
 
   async function load() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { setSinSesion(true); return; }
 
-    const [{ data: p }, { data: m }, { data: r }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', session.user.id).single(),
-      supabase.from('motos').select('marca_modelo, cilindrada, tipo').eq('user_id', session.user.id),
-      supabase.from('rutas').select('id', { count: 'exact' }).eq('user_id', session.user.id).eq('publicada', true),
-    ]);
+    const me = await getMe(session.token);
+    if (me) {
+      setProfile(me);
+      setMotos(me.motos ?? []);
+      getAmigosCount(me.username).then(setFriendCount);
+    }
 
-    if (p) setProfile(p);
-    setMotos(m ?? []);
-    setRutasCount(r?.length ?? 0);
+    const rutas = await getRutas({ username: me?.username });
+    setRutasCount(rutas.length);
 
-    const solicitudes = await getSolicitudesAmistad(session.access_token);
+    const solicitudes = await getSolicitudesAmistad(session.token);
     setSolicitudesCount(solicitudes.length);
-
-    if (p) getAmigosCount(p.username).then(setFriendCount);
   }
 
   async function onRefresh() {
@@ -99,9 +97,8 @@ export default function PerfilScreen() {
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Cerrar sesión', style: 'destructive', onPress: async () => {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) await supabase.from('profiles').update({ online: false, last_seen: new Date().toISOString() }).eq('id', session.user.id);
-          await supabase.auth.signOut();
+          const session = await getSession();
+          if (session) await logout(session.token);
           router.replace('/entrar');
         },
       },

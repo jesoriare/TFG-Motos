@@ -5,9 +5,11 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
 import { getConversaciones, getMensajes, enviarMensaje, setChatAbierto } from '@/lib/api';
+
+const POLL_INTERVAL_MS = 3000;
 
 interface Mensaje {
   id: string;
@@ -39,10 +41,10 @@ export default function ChatScreen() {
   const listRef = useRef<FlatList>(null);
 
   const load = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { router.replace('/entrar'); return; }
     setCurrentUserId(session.user.id);
-    const token = session.access_token;
+    const token = session.token;
 
     const [list, msgs] = await Promise.all([
       getConversaciones(token),
@@ -56,32 +58,29 @@ export default function ChatScreen() {
     setLoading(false);
   }, [id, router]);
 
+  const pollMensajes = useCallback(async () => {
+    const session = await getSession();
+    if (!session) return;
+    const msgs = await getMensajes(id, session.token);
+    setMensajes(prev => (prev.length === msgs.length ? prev : msgs));
+  }, [id]);
+
   useFocusEffect(useCallback(() => {
     load();
 
-    const channel = supabase
-      .channel(`mensajes-${id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'mensajes', filter: `conversacion_id=eq.${id}` },
-        (payload) => {
-          const nuevo = payload.new as Mensaje;
-          setMensajes(prev => prev.some(m => m.id === nuevo.id) ? prev : [...prev, nuevo]);
-        }
-      )
-      .subscribe();
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setChatAbierto(id, session.access_token);
+    getSession().then((session) => {
+      if (session) setChatAbierto(id, session.token);
     });
 
+    const interval = setInterval(pollMensajes, POLL_INTERVAL_MS);
+
     return () => {
-      supabase.removeChannel(channel);
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) setChatAbierto(null, session.access_token);
+      clearInterval(interval);
+      getSession().then((session) => {
+        if (session) setChatAbierto(null, session.token);
       });
     };
-  }, [id, load]));
+  }, [id, load, pollMensajes]));
 
   useEffect(() => {
     if (mensajes.length > 0) {
@@ -92,12 +91,12 @@ export default function ChatScreen() {
   async function handleEnviar() {
     const contenido = texto.trim();
     if (!contenido || sending) return;
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) return;
 
     setSending(true);
     setTexto('');
-    const mensaje = await enviarMensaje(id, contenido, session.access_token);
+    const mensaje = await enviarMensaje(id, contenido, session.token);
     if (mensaje) {
       setMensajes(prev => prev.some(m => m.id === mensaje.id) ? prev : [...prev, mensaje]);
     }

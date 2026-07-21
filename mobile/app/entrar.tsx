@@ -6,8 +6,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
-import { getEmailByUsername } from '@/lib/api';
+import { login } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
 
 export default function EntrarScreen() {
@@ -24,23 +23,11 @@ export default function EntrarScreen() {
     }
     setLoading(true);
 
-    const email = await getEmailByUsername(username);
-    if (!email) {
-      Alert.alert('Error', 'Usuario no encontrado. Asegúrate de que el backend está arrancado.');
-      setLoading(false);
-      return;
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await login(username, password);
     if (error) {
-      Alert.alert('Error', 'Nombre de usuario o contraseña incorrectos');
+      Alert.alert('Error', error);
       setLoading(false);
       return;
-    }
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      await supabase.from('profiles').update({ online: true, last_seen: new Date().toISOString() }).eq('id', session.user.id);
     }
 
     setLoading(false);

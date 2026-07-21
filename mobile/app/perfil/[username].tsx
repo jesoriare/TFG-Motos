@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, Image, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
 import {
   getEstadoAmistad, enviarSolicitudAmistad, aceptarSolicitudAmistad,
   rechazarSolicitudAmistad, eliminarRelacionAmistad, getAmigosCount, crearOAbrirChat,
+  getPerfil, getRutas,
 } from '@/lib/api';
 
 type FriendStatus = 'ninguno' | 'pendiente_enviada' | 'pendiente_recibida' | 'amigos' | 'propio' | null;
@@ -26,22 +27,19 @@ export default function PerfilUsuarioScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const { data: p } = await supabase.from('profiles').select('*').eq('username', username).single();
+    const p = await getPerfil(username);
     if (!p) { setLoading(false); return; }
     setProfile(p);
-    const [{ data: m }, { data: r }] = await Promise.all([
-      supabase.from('motos').select('marca_modelo, cilindrada, tipo').eq('user_id', p.id),
-      supabase.from('rutas').select('id, nombre, region, distancia_km, duracion_min, dificultad').eq('user_id', p.id).eq('publicada', true),
-    ]);
-    setMotos(m ?? []);
-    setRutas(r ?? []);
+    const rutas = await getRutas({ username: p.username });
+    setMotos(p.motos ?? []);
+    setRutas(rutas);
     setLoading(false);
 
     getAmigosCount(p.username).then(setFriendCount);
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (session && session.user.id !== p.id) {
-      const estado = await getEstadoAmistad(p.username, session.access_token);
+      const estado = await getEstadoAmistad(p.username, session.token);
       if (estado) {
         setFriendStatus(estado.estado);
         setFriendRequestId(estado.id ?? null);
@@ -58,8 +56,8 @@ export default function PerfilUsuarioScreen() {
   }
 
   async function getToken() {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
+    const session = await getSession();
+    return session?.token ?? null;
   }
 
   async function handleEnviarSolicitud() {
