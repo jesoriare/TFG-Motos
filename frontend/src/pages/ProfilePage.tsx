@@ -48,7 +48,8 @@ interface Ruta {
   duracion_min: number;
   dificultad: string;
   tags: string[];
-  valoraciones_ruta: { puntuacion: number }[];
+  rating: number | null;
+  num_valoraciones: number;
 }
 
 const DIFICULTAD_COLOR: Record<string, string> = {
@@ -61,11 +62,6 @@ const DIFICULTAD_COLOR: Record<string, string> = {
 const DIFICULTAD_LABEL: Record<string, string> = {
   facil: "Fácil", media: "Media", media_alta: "Media-Alta", alta: "Alta",
 };
-
-function avgRating(valoraciones: { puntuacion: number }[]) {
-  if (!valoraciones.length) return null;
-  return (valoraciones.reduce((s, v) => s + v.puntuacion, 0) / valoraciones.length).toFixed(1);
-}
 
 function formatDuracion(min: number) {
   const h = Math.floor(min / 60);
@@ -469,11 +465,12 @@ export default function ProfilePage() {
 
             {/* Rating summary */}
             {rutas.length > 0 && (() => {
-              const todas = rutas.flatMap(r => r.valoraciones_ruta);
-              const avg = todas.length
-                ? (todas.reduce((s, v) => s + v.puntuacion, 0) / todas.length).toFixed(1)
-                : null;
-              return avg ? (
+              const totalValoraciones = rutas.reduce((s, r) => s + r.num_valoraciones, 0);
+              if (totalValoraciones === 0) return null;
+              const avg = (
+                rutas.reduce((s, r) => s + (r.rating ?? 0) * r.num_valoraciones, 0) / totalValoraciones
+              ).toFixed(1);
+              return (
                 <div className="card-surface rounded-xl p-5 flex items-center gap-4">
                   <div className="h-14 w-14 rounded-xl bg-amber-400/10 border border-amber-400/20 flex flex-col items-center justify-center shrink-0">
                     <Star className="h-5 w-5 text-amber-400" />
@@ -482,11 +479,11 @@ export default function ProfilePage() {
                   <div>
                     <p className="font-bold text-foreground text-sm">Valoración media</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Basada en {todas.length} valoracion{todas.length !== 1 ? "es" : ""}
+                      Basada en {totalValoraciones} valoracion{totalValoraciones !== 1 ? "es" : ""}
                     </p>
                   </div>
                 </div>
-              ) : null;
+              );
             })()}
           </div>
 
@@ -507,7 +504,7 @@ export default function ProfilePage() {
             ) : (
               <div className="space-y-3">
                 {rutas.map((ruta) => {
-                  const rating = avgRating(ruta.valoraciones_ruta);
+                  const rating = ruta.rating != null ? ruta.rating.toFixed(1) : null;
                   return (
                     <div
                       key={ruta.id}

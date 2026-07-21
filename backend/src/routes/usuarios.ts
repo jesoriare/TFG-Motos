@@ -47,6 +47,11 @@ router.put('/me', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const { nombre, apellidos, username, zona, avatar_url, marca_modelo, cilindrada } = req.body;
 
+  if (!nombre || !apellidos || !username) {
+    res.status(400).json({ error: 'Faltan campos obligatorios' });
+    return;
+  }
+
   try {
     await pool.execute(
       'UPDATE profiles SET nombre = ?, apellidos = ?, username = ?, zona = ?, avatar_url = ? WHERE id = ?',
