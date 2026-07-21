@@ -96,7 +96,8 @@ export async function getMapaRiders() {
 
 export async function crearRuta(payload: {
   nombre: string; region: string; distancia_km: number; duracion_min: number;
-  dificultad: string; descripcion?: string | null; tags?: string[]; waypoints?: any[]; avoid_highways?: boolean;
+  dificultad: string; descripcion?: string | null; tags?: string[]; waypoints?: any[];
+  puntos_interes?: any[]; avoid_highways?: boolean;
 }, token: string): Promise<{ error?: string; data?: any }> {
   const res = await fetch(`${API_URL}/rutas`, {
     method: 'POST',
@@ -110,7 +111,8 @@ export async function crearRuta(payload: {
 
 export async function actualizarRuta(id: string, payload: {
   nombre: string; region: string; distancia_km: number; duracion_min: number;
-  dificultad: string; descripcion?: string | null; tags?: string[]; waypoints?: any[]; avoid_highways?: boolean;
+  dificultad: string; descripcion?: string | null; tags?: string[]; waypoints?: any[];
+  puntos_interes?: any[]; avoid_highways?: boolean;
 }, token: string): Promise<{ error?: string; data?: any }> {
   const res = await fetch(`${API_URL}/rutas/${id}`, {
     method: 'PUT',

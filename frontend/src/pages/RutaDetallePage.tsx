@@ -13,6 +13,8 @@ import { getMe, getToken } from "@/lib/api";
 const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
 
 interface Waypoint { lat: number; lng: number; }
+type PoiTipo = 'mirador' | 'descanso' | 'gasolinera';
+interface PuntoInteres { lat: number; lng: number; tipo: PoiTipo; nombre?: string; }
 interface Valoracion {
   puntuacion: number; comentario: string | null; created_at: string;
   profiles: { username: string; avatar_url: string | null };
@@ -22,11 +24,18 @@ interface Ruta {
   distancia_km: number; duracion_min: number;
   dificultad: string; descripcion: string | null;
   tags: string[]; waypoints: Waypoint[];
+  puntos_interes: PuntoInteres[];
   avoid_highways: boolean;
   publicada: boolean; created_at: string;
   profiles: { username: string; avatar_url: string | null; verified: boolean; zona: string | null };
   valoraciones_ruta: Valoracion[];
 }
+
+const POI_TIPOS: { key: PoiTipo; label: string; emoji: string; color: string }[] = [
+  { key: 'mirador',    label: 'Mirador',    emoji: '👁️', color: '#22C55E' },
+  { key: 'descanso',   label: 'Descanso',   emoji: '☕', color: '#3B82F6' },
+  { key: 'gasolinera', label: 'Gasolinera', emoji: '⛽', color: '#A855F7' },
+];
 
 function markerIcon(label: string) {
   return L.divIcon({
@@ -34,6 +43,16 @@ function markerIcon(label: string) {
     className: '',
     iconSize: [28, 28],
     iconAnchor: [14, 28],
+  });
+}
+
+function poiIcon(tipo: PoiTipo) {
+  const meta = POI_TIPOS.find(t => t.key === tipo)!;
+  return L.divIcon({
+    html: `<div style="background:${meta.color};border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4)">${meta.emoji}</div>`,
+    className: '',
+    iconSize: [26, 26],
+    iconAnchor: [13, 26],
   });
 }
 
@@ -204,6 +223,9 @@ export default function RutaDetallePage() {
                 icon={markerIcon(String.fromCharCode(65 + i))}
               />
             ))}
+            {ruta.puntos_interes?.map((p, i) => (
+              <Marker key={`poi-${i}`} position={[p.lat, p.lng]} icon={poiIcon(p.tipo)} />
+            ))}
             {routeCoords.length > 0 && (
               <Polyline positions={routeCoords} color="#F97316" weight={4} opacity={0.9} />
             )}
@@ -261,6 +283,29 @@ export default function RutaDetallePage() {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Puntos de interés */}
+            {ruta.puntos_interes?.length > 0 && (
+              <div className="card-surface rounded-xl p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                  📍 Puntos de interés ({ruta.puntos_interes.length})
+                </p>
+                <div className="space-y-2">
+                  {ruta.puntos_interes.map((p, i) => {
+                    const meta = POI_TIPOS.find(t => t.key === p.tipo)!;
+                    return (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <div className="h-5 w-5 shrink-0 rounded-full flex items-center justify-center text-[11px]" style={{ backgroundColor: meta.color }}>
+                          {meta.emoji}
+                        </div>
+                        <span className="text-foreground font-medium flex-1">{p.nombre ?? `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`}</span>
+                        <span className="text-muted-foreground/60">{meta.label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

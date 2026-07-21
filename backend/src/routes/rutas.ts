@@ -54,8 +54,9 @@ router.get('/:id', async (req, res) => {
   if (!rows[0]) { res.status(404).json({ error: 'Ruta no encontrada' }); return; }
 
   const ruta = rows[0];
-  ruta.tags      = parseJson(ruta.tags);
-  ruta.waypoints = parseJson(ruta.waypoints);
+  ruta.tags           = parseJson(ruta.tags);
+  ruta.waypoints      = parseJson(ruta.waypoints);
+  ruta.puntos_interes = parseJson(ruta.puntos_interes);
   ruta.profiles  = { username: ruta.username, avatar_url: ruta.avatar_url, verified: !!ruta.verified, zona: ruta.zona };
 
   const [valoraciones] = await pool.execute<any[]>(`
@@ -75,42 +76,46 @@ router.get('/:id', async (req, res) => {
 // POST /rutas
 router.post('/', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
-  const { nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints, avoid_highways } = req.body;
+  const { nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints, puntos_interes, avoid_highways } = req.body;
   const id = uuidv4();
 
   await pool.execute(
-    `INSERT INTO rutas (id, user_id, nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints, avoid_highways)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO rutas (id, user_id, nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints, puntos_interes, avoid_highways)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, userId, nombre, region, distancia_km, duracion_min, dificultad ?? 'media',
-     descripcion ?? null, JSON.stringify(tags ?? []), JSON.stringify(waypoints ?? []), !!avoid_highways]
+     descripcion ?? null, JSON.stringify(tags ?? []), JSON.stringify(waypoints ?? []),
+     JSON.stringify(puntos_interes ?? []), !!avoid_highways]
   );
 
   const [rows] = await pool.execute<any[]>('SELECT * FROM rutas WHERE id = ?', [id]);
   const r = rows[0];
   r.tags = parseJson(r.tags);
   r.waypoints = parseJson(r.waypoints);
+  r.puntos_interes = parseJson(r.puntos_interes);
   res.status(201).json(r);
 });
 
 // PUT /rutas/:id
 router.put('/:id', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
-  const { nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints, avoid_highways } = req.body;
+  const { nombre, region, distancia_km, duracion_min, dificultad, descripcion, tags, waypoints, puntos_interes, avoid_highways } = req.body;
 
   const [check] = await pool.execute<any[]>('SELECT id FROM rutas WHERE id = ? AND user_id = ?', [req.params.id, userId]);
   if (!check[0]) { res.status(404).json({ error: 'Ruta no encontrada o sin permiso' }); return; }
 
   await pool.execute(
     `UPDATE rutas SET nombre = ?, region = ?, distancia_km = ?, duracion_min = ?,
-     dificultad = ?, descripcion = ?, tags = ?, waypoints = ?, avoid_highways = ? WHERE id = ? AND user_id = ?`,
+     dificultad = ?, descripcion = ?, tags = ?, waypoints = ?, puntos_interes = ?, avoid_highways = ? WHERE id = ? AND user_id = ?`,
     [nombre, region, distancia_km, duracion_min, dificultad, descripcion ?? null,
-     JSON.stringify(tags ?? []), JSON.stringify(waypoints ?? []), !!avoid_highways, req.params.id, userId]
+     JSON.stringify(tags ?? []), JSON.stringify(waypoints ?? []), JSON.stringify(puntos_interes ?? []),
+     !!avoid_highways, req.params.id, userId]
   );
 
   const [rows] = await pool.execute<any[]>('SELECT * FROM rutas WHERE id = ?', [req.params.id]);
   const r = rows[0];
   r.tags = parseJson(r.tags);
   r.waypoints = parseJson(r.waypoints);
+  r.puntos_interes = parseJson(r.puntos_interes);
   res.json(r);
 });
 

@@ -95,6 +95,7 @@ CREATE TABLE rutas (
   descripcion    TEXT,
   tags           JSON         NOT NULL DEFAULT ('[]'),
   waypoints      JSON         NOT NULL DEFAULT ('[]'),
+  puntos_interes JSON         NOT NULL DEFAULT ('[]'),
   avoid_highways TINYINT(1)   NOT NULL DEFAULT 0,
   publicada      TINYINT(1)   NOT NULL DEFAULT 1,
   created_at     DATETIME     NOT NULL DEFAULT NOW(),

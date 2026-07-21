@@ -13,6 +13,8 @@ import { colors, radius } from '@/constants/theme';
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 interface Waypoint { lat: number; lng: number; }
+type PoiTipo = 'mirador' | 'descanso' | 'gasolinera';
+interface PuntoInteres { lat: number; lng: number; tipo: PoiTipo; nombre?: string; }
 interface Valoracion {
   puntuacion: number; comentario: string | null; created_at: string;
   profiles: { username: string };
@@ -21,10 +23,17 @@ interface Ruta {
   id: string; user_id: string; nombre: string; region: string;
   distancia_km: number; duracion_min: number; dificultad: string;
   descripcion: string | null; tags: string[]; waypoints: Waypoint[];
+  puntos_interes: PuntoInteres[];
   avoid_highways: boolean; created_at: string;
   profiles: { username: string; verified: boolean; zona: string | null };
   valoraciones_ruta: Valoracion[];
 }
+
+const POI_TIPOS: { key: PoiTipo; label: string; emoji: string; color: string }[] = [
+  { key: 'mirador',    label: 'Mirador',    emoji: '👁️', color: '#22C55E' },
+  { key: 'descanso',   label: 'Descanso',   emoji: '☕', color: '#3B82F6' },
+  { key: 'gasolinera', label: 'Gasolinera', emoji: '⛽', color: '#A855F7' },
+];
 
 const DIFICULTAD: Record<string, { label: string; color: string }> = {
   facil:      { label: 'Fácil',      color: colors.success },
@@ -199,6 +208,13 @@ export default function RutaDetalleScreen() {
                 </View>
               </Marker>
             ))}
+            {ruta.puntos_interes?.map((p, i) => (
+              <Marker key={`poi-${i}`} coordinate={{ latitude: p.lat, longitude: p.lng }}>
+                <View style={[s.poiCircle, { backgroundColor: POI_TIPOS.find(t => t.key === p.tipo)!.color }]}>
+                  <Text style={s.poiEmoji}>{POI_TIPOS.find(t => t.key === p.tipo)!.emoji}</Text>
+                </View>
+              </Marker>
+            ))}
             {routeCoords.length > 0 && (
               <Polyline coordinates={routeCoords} strokeColor={colors.primary} strokeWidth={4} />
             )}
@@ -258,6 +274,27 @@ export default function RutaDetalleScreen() {
                     }
                   </View>
                 ))}
+              </View>
+            </View>
+          )}
+
+          {/* Puntos de interés */}
+          {ruta.puntos_interes?.length > 0 && (
+            <View style={s.card}>
+              <SectionTitle icon="pin-outline" text={`Puntos de interés (${ruta.puntos_interes.length})`} />
+              <View style={{ gap: 8 }}>
+                {ruta.puntos_interes.map((p, i) => {
+                  const meta = POI_TIPOS.find(t => t.key === p.tipo)!;
+                  return (
+                    <View key={i} style={s.waypointRow}>
+                      <View style={[s.poiBubble, { backgroundColor: meta.color }]}>
+                        <Text style={s.poiBubbleEmoji}>{meta.emoji}</Text>
+                      </View>
+                      <Text style={s.waypointName}>{p.nombre ?? `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`}</Text>
+                      <Text style={s.poiTipoLabel}>{meta.label}</Text>
+                    </View>
+                  );
+                })}
               </View>
             </View>
           )}
@@ -375,6 +412,11 @@ const s = StyleSheet.create({
   map: { flex: 1 },
   markerCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'white' },
   markerLabel: { color: 'white', fontWeight: '800', fontSize: 11 },
+  poiCircle: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'white' },
+  poiEmoji: { fontSize: 13 },
+  poiBubble: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  poiBubbleEmoji: { fontSize: 11 },
+  poiTipoLabel: { color: colors.muted, fontSize: 11 },
   content: { padding: 16, gap: 12 },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   nombre: { color: colors.foreground, fontWeight: '900', fontSize: 22 },
