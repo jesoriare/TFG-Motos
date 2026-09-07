@@ -131,7 +131,7 @@ router.post('/route', async (req, res) => {
       }
       // cycling-road evita motorway + trunk (autopistas y autovías) de forma nativa.
       // El tiempo lo calculamos nosotros a velocidad media de moto en carretera secundaria.
-      const response = await fetch('https://api.openrouteservice.org/v2/directions/cycling-road', {
+      const response = await fetch('https://api.heigit.org/openrouteservice/v2/directions/cycling-road', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -154,10 +154,8 @@ router.post('/route', async (req, res) => {
           return;
         }
       }
-      const errBody = await response.text().catch(() => '');
-      console.error('[ORS] falló (status', response.status, '):', errBody, '- fallback a OSRM');
-      const fallback = await routeOsrm(waypoints);
-      res.json({ ...fallback, _orsDebug: { status: response.status, body: errBody } });
+      console.error('[ORS] falló (status', response.status, '), fallback a OSRM');
+      res.json(await routeOsrm(waypoints));
     } else {
       res.json(await routeOsrm(waypoints));
     }
