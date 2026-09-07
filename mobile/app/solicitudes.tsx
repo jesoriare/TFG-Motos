@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, FlatList, Image, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
 import { getSolicitudesAmistad, aceptarSolicitudAmistad, rechazarSolicitudAmistad } from '@/lib/api';
 
@@ -26,9 +26,9 @@ export default function SolicitudesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   async function load() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { router.replace('/entrar'); return; }
-    setSolicitudes(await getSolicitudesAmistad(session.access_token));
+    setSolicitudes(await getSolicitudesAmistad(session.token));
     setLoading(false);
   }
 
@@ -41,20 +41,20 @@ export default function SolicitudesScreen() {
   }
 
   async function handleAceptar(id: string) {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) return;
     setProcessingIds(prev => new Set(prev).add(id));
-    if (await aceptarSolicitudAmistad(id, session.access_token)) {
+    if (await aceptarSolicitudAmistad(id, session.token)) {
       setSolicitudes(prev => prev.filter(s => s.id !== id));
     }
     setProcessingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
   }
 
   async function handleRechazar(id: string) {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) return;
     setProcessingIds(prev => new Set(prev).add(id));
-    if (await rechazarSolicitudAmistad(id, session.access_token)) {
+    if (await rechazarSolicitudAmistad(id, session.token)) {
       setSolicitudes(prev => prev.filter(s => s.id !== id));
     }
     setProcessingIds(prev => { const next = new Set(prev); next.delete(id); return next; });

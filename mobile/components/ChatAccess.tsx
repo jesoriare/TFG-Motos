@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { PanGestureHandler, State, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import { colors } from '@/constants/theme';
 import { getNoLeidosCount } from '@/lib/api';
 
@@ -15,9 +15,9 @@ export default function ChatAccess({ children }: { children: React.ReactNode }) 
   const [noLeidos, setNoLeidos] = useState(0);
 
   const load = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { setNoLeidos(0); return; }
-    setNoLeidos(await getNoLeidosCount(session.access_token));
+    setNoLeidos(await getNoLeidosCount(session.token));
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));

@@ -11,12 +11,31 @@ const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:30
 
 interface Waypoint { lat: number; lng: number; name?: string; }
 
+type PoiTipo = 'mirador' | 'descanso' | 'gasolinera';
+interface PuntoInteres { lat: number; lng: number; tipo: PoiTipo; nombre?: string; }
+
+const POI_TIPOS: { key: PoiTipo; label: string; emoji: string; color: string }[] = [
+  { key: 'mirador',    label: 'Mirador',    emoji: '👁️', color: '#22C55E' },
+  { key: 'descanso',   label: 'Descanso',   emoji: '☕', color: '#3B82F6' },
+  { key: 'gasolinera', label: 'Gasolinera', emoji: '⛽', color: '#A855F7' },
+];
+
 function markerIcon(label: string) {
   return L.divIcon({
     html: `<div style="background:#F97316;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4)">${label}</div>`,
     className: '',
     iconSize: [28, 28],
     iconAnchor: [14, 28],
+  });
+}
+
+function poiIcon(tipo: PoiTipo) {
+  const meta = POI_TIPOS.find(t => t.key === tipo)!;
+  return L.divIcon({
+    html: `<div style="background:${meta.color};border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4)">${meta.emoji}</div>`,
+    className: '',
+    iconSize: [26, 26],
+    iconAnchor: [13, 26],
   });
 }
 
@@ -56,6 +75,9 @@ export default function CrearRutaPage() {
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
   const [avoidHighways, setAvoidHighways] = useState(false);
+  const [mode, setMode] = useState<'parada' | 'poi'>('parada');
+  const [poiTipo, setPoiTipo] = useState<PoiTipo>('mirador');
+  const [puntosInteres, setPuntosInteres] = useState<PuntoInteres[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -138,6 +160,27 @@ export default function CrearRutaPage() {
     setWaypoints(prev => prev.filter((_, idx) => idx !== i));
   }
 
+  function addPoi(lat: number, lng: number) {
+    const idx = puntosInteres.length;
+    setPuntosInteres(prev => [...prev, { lat, lng, tipo: poiTipo }]);
+    fetch(`${API_URL}/geocode/reverse?lat=${lat}&lng=${lng}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!mountedRef.current || !data) return;
+        setPuntosInteres(prev => prev.map((p, i) => i === idx ? { ...p, nombre: data.name } : p));
+      })
+      .catch(() => {});
+  }
+
+  function removePoi(i: number) {
+    setPuntosInteres(prev => prev.filter((_, idx) => idx !== i));
+  }
+
+  function handleMapClick(lat: number, lng: number) {
+    if (mode === 'poi') addPoi(lat, lng);
+    else addWaypointWithName(lat, lng);
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
     if (error) setError(null);
@@ -168,6 +211,7 @@ export default function CrearRutaPage() {
         descripcion: form.descripcion || null,
         tags: form.tags,
         waypoints: waypoints.map(({ lat, lng }) => ({ lat, lng })),
+        puntos_interes: puntosInteres.map(({ lat, lng, tipo, nombre }) => ({ lat, lng, tipo, nombre })),
       }),
     });
     setLoading(false);
@@ -210,7 +254,7 @@ export default function CrearRutaPage() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a>'
             />
-            <MapClickHandler onAdd={addWaypointWithName} />
+            <MapClickHandler onAdd={handleMapClick} />
             {waypoints.map((wp, i) => (
               <Marker
                 key={i}
@@ -218,14 +262,42 @@ export default function CrearRutaPage() {
                 icon={markerIcon(String.fromCharCode(65 + i))}
               />
             ))}
+            {puntosInteres.map((p, i) => (
+              <Marker key={`poi-${i}`} position={[p.lat, p.lng]} icon={poiIcon(p.tipo)} />
+            ))}
             {routeCoords.length > 0 && (
               <Polyline positions={routeCoords} color="#F97316" weight={4} opacity={0.85} />
             )}
           </MapContainer>
 
+          {/* Selector de modo */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] flex flex-col items-center gap-2">
+            <div className="flex rounded-full border border-border/50 bg-background/90 backdrop-blur-sm p-1 shadow-lg">
+              <button type="button" onClick={() => setMode('parada')}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${mode === 'parada' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                Parada
+              </button>
+              <button type="button" onClick={() => setMode('poi')}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${mode === 'poi' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                Punto de interés
+              </button>
+            </div>
+            {mode === 'poi' && (
+              <div className="flex rounded-full border border-border/50 bg-background/90 backdrop-blur-sm p-1 shadow-lg gap-1">
+                {POI_TIPOS.map(t => (
+                  <button key={t.key} type="button" onClick={() => setPoiTipo(t.key)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold transition-all ${poiTipo === t.key ? 'text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                    style={poiTipo === t.key ? { backgroundColor: t.color } : undefined}>
+                    <span>{t.emoji}</span> {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Hint overlay */}
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[1000] bg-background/80 backdrop-blur-sm text-xs text-muted-foreground px-3 py-1.5 rounded-full border border-border/50 pointer-events-none">
-            Haz clic en el mapa para añadir paradas
+            {mode === 'poi' ? 'Haz clic en el mapa para añadir un punto de interés' : 'Haz clic en el mapa para añadir paradas'}
           </div>
         </div>
 
@@ -308,6 +380,36 @@ export default function CrearRutaPage() {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Puntos de interés list */}
+            {puntosInteres.length > 0 && (
+              <div className="mb-5 card-surface rounded-xl p-3 space-y-1.5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Puntos de interés ({puntosInteres.length})</span>
+                  <button type="button" onClick={() => setPuntosInteres([])} className="text-xs text-danger hover:opacity-70 flex items-center gap-1">
+                    <Trash2 className="h-3 w-3" /> Limpiar
+                  </button>
+                </div>
+                {puntosInteres.map((p, i) => {
+                  const meta = POI_TIPOS.find(t => t.key === p.tipo)!;
+                  return (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <div className="h-5 w-5 flex-shrink-0 rounded-full flex items-center justify-center text-[11px]" style={{ backgroundColor: meta.color }}>
+                        {meta.emoji}
+                      </div>
+                      {p.nombre
+                        ? <span className="text-foreground font-medium flex-1">{p.nombre}</span>
+                        : <span className="text-muted-foreground italic flex-1">Cargando...</span>
+                      }
+                      <span className="text-muted-foreground/60">{meta.label}</span>
+                      <button onClick={() => removePoi(i)} className="text-muted-foreground hover:text-danger transition-colors">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

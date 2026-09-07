@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, Image, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
 import { getAmigos } from '@/lib/api';
 
@@ -26,10 +26,10 @@ export default function AmigosScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { setForbidden(true); setLoading(false); return; }
 
-    const { status, data } = await getAmigos(username, session.access_token);
+    const { status, data } = await getAmigos(username, session.token);
     if (status === 403) { setForbidden(true); setLoading(false); return; }
     if (status === 404) { setNotFound(true); setLoading(false); return; }
     if (data) setAmigos(data);

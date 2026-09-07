@@ -12,6 +12,7 @@ import geocodeRouter from './routes/geocode.js';
 import amistadRouter from './routes/amistad.js';
 import chatRouter from './routes/chat.js';
 import uploadRouter from './routes/upload.js';
+import gruposRouter from './routes/grupos.js';
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -31,5 +32,6 @@ app.use('/geocode', geocodeRouter);
 app.use('/amistad', amistadRouter);
 app.use('/chat', chatRouter);
 app.use('/upload', uploadRouter);
+app.use('/grupos', gruposRouter);
 
 app.listen(PORT, () => console.log(`Backend RodadaMoto en http://localhost:${PORT}`));

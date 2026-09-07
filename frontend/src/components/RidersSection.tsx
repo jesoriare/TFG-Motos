@@ -23,6 +23,8 @@ export default function RidersSection() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [activeType, setActiveType] = useState("Todos");
+  const [cilMin, setCilMin] = useState("");
+  const [cilMax, setCilMax] = useState("");
   const [riders, setRiders] = useState<Rider[]>([]);
   const [loading, setLoading] = useState(true);
   const [backendDown, setBackendDown] = useState(false);
@@ -32,12 +34,14 @@ export default function RidersSection() {
     setCurrentUserId(getMe()?.id ?? null);
   }, []);
 
-  const fetchRiders = useCallback(async (search: string, tipo: string) => {
+  const fetchRiders = useCallback(async (search: string, tipo: string, min: string, max: string) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (tipo !== "Todos") params.set("tipo", tipo.toLowerCase());
+      if (min) params.set("cilindrada_min", min);
+      if (max) params.set("cilindrada_max", max);
 
       const res = await fetch(`${API_URL}/usuarios?${params}`);
       if (!res.ok) throw new Error();
@@ -52,13 +56,13 @@ export default function RidersSection() {
   }, []);
 
   // Carga inicial
-  useEffect(() => { fetchRiders("", "Todos"); }, [fetchRiders]);
+  useEffect(() => { fetchRiders("", "Todos", "", ""); }, [fetchRiders]);
 
   // Búsqueda con debounce
   useEffect(() => {
-    const t = setTimeout(() => fetchRiders(query, activeType), 300);
+    const t = setTimeout(() => fetchRiders(query, activeType, cilMin, cilMax), 300);
     return () => clearTimeout(t);
-  }, [query, activeType, fetchRiders]);
+  }, [query, activeType, cilMin, cilMax, fetchRiders]);
 
   return (
     <section id="moteros" className="py-20 px-4">
@@ -75,7 +79,7 @@ export default function RidersSection() {
         </div>
 
         {/* Filtros tipo */}
-        <div className="mb-6 flex flex-wrap items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
             <Filter className="h-3.5 w-3.5" />
             Tipo:
@@ -93,6 +97,41 @@ export default function RidersSection() {
               {type}
             </button>
           ))}
+        </div>
+
+        {/* Filtro cilindrada */}
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Cilindrada:
+          </div>
+          <input
+            type="number"
+            min={0}
+            step={100}
+            value={cilMin}
+            onChange={(e) => setCilMin(e.target.value)}
+            placeholder="Mín cc"
+            className="w-24 rounded-md border border-border surface-2 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50"
+          />
+          <span className="text-xs text-muted-foreground">—</span>
+          <input
+            type="number"
+            min={0}
+            step={100}
+            value={cilMax}
+            onChange={(e) => setCilMax(e.target.value)}
+            placeholder="Máx cc"
+            className="w-24 rounded-md border border-border surface-2 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50"
+          />
+          {(cilMin || cilMax) && (
+            <button
+              onClick={() => { setCilMin(""); setCilMax(""); }}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="Quitar filtro de cilindrada"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Buscador */}

@@ -1,41 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, FlatList, Image, StyleSheet, TouchableOpacity,
+  View, Text, FlatList, StyleSheet, TouchableOpacity,
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
-import { getConversaciones, getMensajes, enviarMensaje, setChatAbierto } from '@/lib/api';
+import { getGrupo, getMensajesGrupo, enviarMensajeGrupo } from '@/lib/api';
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 2000;
 
-interface Mensaje {
+interface MensajeGrupo {
   id: string;
-  conversacion_id: string;
+  grupo_id: string;
   emisor_id: string;
   contenido: string;
   created_at: string;
-  leido: boolean;
+  emisor: { username: string; nombre: string; apellidos: string; avatar_url: string | null };
 }
 
-interface Interlocutor {
-  id: string;
-  username: string;
-  nombre: string;
-  apellidos: string;
-  avatar_url: string | null;
-  online: boolean;
-}
-
-export default function ChatScreen() {
+export default function GrupoChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [mensajes, setMensajes] = useState<Mensaje[]>([]);
-  const [interlocutor, setInterlocutor] = useState<Interlocutor | null>(null);
+  const [mensajes, setMensajes] = useState<MensajeGrupo[]>([]);
+  const [nombreGrupo, setNombreGrupo] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [texto, setTexto] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
@@ -44,43 +36,27 @@ export default function ChatScreen() {
     const session = await getSession();
     if (!session) { router.replace('/entrar'); return; }
     setCurrentUserId(session.user.id);
-    const token = session.token;
 
-    const [list, msgs] = await Promise.all([
-      getConversaciones(token),
-      getMensajes(id, token),
-    ]);
+    const { status, data: grupo } = await getGrupo(id, session.token);
+    if (status === 403 || status === 404) { setForbidden(true); setLoading(false); return; }
+    if (grupo) setNombreGrupo(grupo.nombre);
 
-    const conv = list.find((c: { id: string; usuario: Interlocutor }) => c.id === id);
-    if (conv) setInterlocutor(conv.usuario);
-
-    setMensajes(msgs);
+    setMensajes(await getMensajesGrupo(id, session.token));
     setLoading(false);
   }, [id, router]);
 
   const pollMensajes = useCallback(async () => {
     const session = await getSession();
     if (!session) return;
-    const msgs = await getMensajes(id, session.token);
+    const msgs = await getMensajesGrupo(id, session.token);
     setMensajes(prev => (prev.length === msgs.length ? prev : msgs));
   }, [id]);
 
   useFocusEffect(useCallback(() => {
     load();
-
-    getSession().then((session) => {
-      if (session) setChatAbierto(id, session.token);
-    });
-
     const interval = setInterval(pollMensajes, POLL_INTERVAL_MS);
-
-    return () => {
-      clearInterval(interval);
-      getSession().then((session) => {
-        if (session) setChatAbierto(null, session.token);
-      });
-    };
-  }, [id, load, pollMensajes]));
+    return () => clearInterval(interval);
+  }, [load, pollMensajes]));
 
   useEffect(() => {
     if (mensajes.length > 0) {
@@ -96,7 +72,7 @@ export default function ChatScreen() {
 
     setSending(true);
     setTexto('');
-    const mensaje = await enviarMensaje(id, contenido, session.token);
+    const mensaje = await enviarMensajeGrupo(id, contenido, session.token);
     if (mensaje) {
       setMensajes(prev => prev.some(m => m.id === mensaje.id) ? prev : [...prev, mensaje]);
     }
@@ -104,39 +80,36 @@ export default function ChatScreen() {
   }
 
   if (loading) {
+    return <View style={s.center}><ActivityIndicator color={colors.primary} /></View>;
+  }
+
+  if (forbidden) {
     return (
-      <View style={s.center}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={s.screen}>
+        <View style={s.empty}>
+          <Ionicons name="lock-closed-outline" size={40} color={colors.muted} style={{ opacity: 0.4 }} />
+          <Text style={s.emptyText}>No perteneces a este grupo</Text>
+        </View>
       </View>
     );
   }
-
-  const initials = interlocutor
-    ? `${interlocutor.nombre.charAt(0)}${interlocutor.apellidos?.charAt(0) ?? ''}`.toUpperCase()
-    : '?';
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={s.screen}>
         <View style={s.header}>
-          <TouchableOpacity style={s.back} onPress={() => router.back()}>
+          <TouchableOpacity style={s.back} onPress={() => router.replace(`/grupos/${id}` as any)}>
             <Ionicons name="arrow-back" size={20} color={colors.foreground} />
           </TouchableOpacity>
-          {interlocutor && (
-            <TouchableOpacity style={s.headerInfo} onPress={() => router.push(`/perfil/${interlocutor.username}` as any)}>
-              <View style={s.avatarWrap}>
-                {interlocutor.avatar_url
-                  ? <Image source={{ uri: interlocutor.avatar_url }} style={s.avatarImg} />
-                  : <Text style={s.avatarText}>{initials}</Text>
-                }
-                {interlocutor.online && <View style={s.onlineDot} />}
-              </View>
-              <View style={{ minWidth: 0, flex: 1 }}>
-                <Text style={s.name} numberOfLines={1}>{interlocutor.nombre} {interlocutor.apellidos}</Text>
-                <Text style={s.username} numberOfLines={1}>@{interlocutor.username}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          <View style={s.headerInfo}>
+            <View style={s.groupIcon}>
+              <Ionicons name="people" size={18} color={colors.primary} />
+            </View>
+            <View style={{ minWidth: 0, flex: 1 }}>
+              <Text style={s.name} numberOfLines={1}>{nombreGrupo}</Text>
+              <Text style={s.username}>Chat de grupo</Text>
+            </View>
+          </View>
         </View>
 
         <FlatList
@@ -144,12 +117,15 @@ export default function ChatScreen() {
           data={mensajes}
           keyExtractor={(item) => item.id}
           contentContainerStyle={s.list}
-          ListEmptyComponent={<Text style={s.empty}>Empieza la conversación</Text>}
+          ListEmptyComponent={<Text style={s.emptyMsg}>Empieza la conversación del grupo</Text>}
           renderItem={({ item }) => {
             const propio = item.emisor_id === currentUserId;
             return (
               <View style={[s.bubbleRow, propio && s.bubbleRowOwn]}>
                 <View style={[s.bubble, propio ? s.bubbleOwn : s.bubbleOther]}>
+                  {!propio && (
+                    <Text style={s.bubbleAuthor}>{item.emisor.nombre} {item.emisor.apellidos}</Text>
+                  )}
                   <Text style={[s.bubbleText, propio && s.bubbleTextOwn]}>{item.contenido}</Text>
                   <Text style={[s.bubbleTime, propio && s.bubbleTimeOwn]}>
                     {new Date(item.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
@@ -188,22 +164,22 @@ const s = StyleSheet.create({
   },
   back: { padding: 4 },
   headerInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
-  avatarWrap: {
-    width: 40, height: 40, borderRadius: radius.md, overflow: 'hidden',
-    backgroundColor: 'rgba(255,107,26,0.15)', alignItems: 'center', justifyContent: 'center',
+  groupIcon: {
+    width: 40, height: 40, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,107,26,0.15)',
   },
-  avatarImg: { width: '100%', height: '100%' },
-  avatarText: { color: colors.primary, fontWeight: '800', fontSize: 14 },
-  onlineDot: { position: 'absolute', bottom: -2, right: -2, width: 11, height: 11, borderRadius: 6, backgroundColor: colors.success, borderWidth: 2, borderColor: colors.background },
   name: { color: colors.foreground, fontWeight: '700', fontSize: 14 },
   username: { color: colors.muted, fontSize: 12 },
   list: { padding: 16, gap: 8, flexGrow: 1 },
-  empty: { color: colors.muted, textAlign: 'center', marginTop: 40, fontSize: 14 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10 },
+  emptyText: { color: colors.muted, fontSize: 14, textAlign: 'center' },
+  emptyMsg: { color: colors.muted, textAlign: 'center', marginTop: 40, fontSize: 14 },
   bubbleRow: { flexDirection: 'row', justifyContent: 'flex-start' },
   bubbleRowOwn: { justifyContent: 'flex-end' },
   bubble: { maxWidth: '78%', borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 8 },
   bubbleOther: { backgroundColor: colors.surface1, borderWidth: 1, borderColor: colors.border },
   bubbleOwn: { backgroundColor: colors.primary },
+  bubbleAuthor: { color: colors.primary, fontWeight: '800', fontSize: 11, marginBottom: 2 },
   bubbleText: { color: colors.foreground, fontSize: 14 },
   bubbleTextOwn: { color: colors.primaryFg },
   bubbleTime: { color: colors.muted, fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },

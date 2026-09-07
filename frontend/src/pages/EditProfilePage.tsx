@@ -95,6 +95,7 @@ export default function EditProfilePage() {
       body: JSON.stringify({
         nombre: form.nombre,
         apellidos: form.apellidos,
+        username: form.username,
         zona: form.zona || null,
         avatar_url: form.avatar_url || null,
         marca_modelo: form.marca_modelo || undefined,
@@ -180,8 +181,6 @@ export default function EditProfilePage() {
               </div>
 
               <Field label="Nombre de usuario" name="username" value={form.username} onChange={handleChange} icon={<AtSign className="h-4 w-4" />} required />
-
-              <Field label="URL del avatar" name="avatar_url" value={form.avatar_url} onChange={handleChange} placeholder="https://..." icon={<User className="h-4 w-4" />} />
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Zona / Ciudad</label>

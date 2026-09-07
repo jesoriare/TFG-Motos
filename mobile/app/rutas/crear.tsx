@@ -7,7 +7,8 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
+import { crearRuta } from '@/lib/api';
 import { Spinner } from '@/components/Spinner';
 import { colors, radius } from '@/constants/theme';
 import { CIUDADES_ESPANA } from '@/data/ciudades-espana';
@@ -16,6 +17,15 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 interface Waypoint { lat: number; lng: number; name?: string; }
 interface SearchResult { label: string; lat: number; lng: number; }
+
+type PoiTipo = 'mirador' | 'descanso' | 'gasolinera';
+interface PuntoInteres { lat: number; lng: number; tipo: PoiTipo; nombre?: string; }
+
+const POI_TIPOS: { key: PoiTipo; label: string; emoji: string; color: string }[] = [
+  { key: 'mirador',    label: 'Mirador',    emoji: '👁️', color: '#22C55E' },
+  { key: 'descanso',   label: 'Descanso',   emoji: '☕', color: '#3B82F6' },
+  { key: 'gasolinera', label: 'Gasolinera', emoji: '⛽', color: '#A855F7' },
+];
 
 const DIFICULTADES = [
   { key: 'facil', label: 'Fácil', color: colors.success },
@@ -50,6 +60,9 @@ export default function CrearRutaScreen() {
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   const [avoidHighways, setAvoidHighways] = useState(false);
+  const [mode, setMode] = useState<'parada' | 'poi'>('parada');
+  const [poiTipo, setPoiTipo] = useState<PoiTipo>('mirador');
+  const [puntosInteres, setPuntosInteres] = useState<PuntoInteres[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -123,6 +136,27 @@ export default function CrearRutaScreen() {
     setWaypoints(prev => prev.filter((_, idx) => idx !== i));
   }
 
+  function addPoi(lat: number, lng: number) {
+    const idx = puntosInteres.length;
+    setPuntosInteres(prev => [...prev, { lat, lng, tipo: poiTipo }]);
+    fetch(`${API_URL}/geocode/reverse?lat=${lat}&lng=${lng}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!mountedRef.current || !data?.name) return;
+        setPuntosInteres(prev => prev.map((p, i) => i === idx ? { ...p, nombre: data.name } : p));
+      })
+      .catch(() => {});
+  }
+
+  function removePoi(i: number) {
+    setPuntosInteres(prev => prev.filter((_, idx) => idx !== i));
+  }
+
+  function handleMapPress(lat: number, lng: number) {
+    if (mode === 'poi') addPoi(lat, lng);
+    else addWaypointWithName(lat, lng);
+  }
+
   function addTag() {
     const t = tagInput.trim();
     if (t && !(form.tags as string[]).includes(t))
@@ -136,11 +170,10 @@ export default function CrearRutaScreen() {
       return;
     }
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { Alert.alert('Error', 'Debes iniciar sesión'); setLoading(false); return; }
     const duracion_min = (parseInt(form.horas || '0') * 60) + parseInt(form.minutos || '0');
-    const { error } = await supabase.from('rutas').insert({
-      user_id: session.user.id,
+    const { error } = await crearRuta({
       nombre: form.nombre,
       region: form.region,
       distancia_km: parseInt(form.distancia_km),
@@ -149,10 +182,11 @@ export default function CrearRutaScreen() {
       descripcion: form.descripcion || null,
       tags: form.tags,
       waypoints: waypoints.map(({ lat, lng }) => ({ lat, lng })),
+      puntos_interes: puntosInteres.map(({ lat, lng, tipo, nombre }) => ({ lat, lng, tipo, nombre })),
       avoid_highways: avoidHighways,
-    });
+    }, session.token);
     setLoading(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert('Error', error); return; }
     Alert.alert('¡Ruta publicada!', 'Tu ruta ya está disponible para la comunidad', [
       { text: 'OK', onPress: () => router.back() },
     ]);
@@ -175,7 +209,7 @@ export default function CrearRutaScreen() {
           style={s.map}
           provider={PROVIDER_DEFAULT}
           initialRegion={{ latitude: 40.4, longitude: -3.7, latitudeDelta: 8, longitudeDelta: 8 }}
-          onPress={e => addWaypointWithName(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)}
+          onPress={e => handleMapPress(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)}
         >
           {waypoints.map((wp, i) => (
             <Marker key={i} coordinate={{ latitude: wp.lat, longitude: wp.lng }}>
@@ -184,13 +218,47 @@ export default function CrearRutaScreen() {
               </View>
             </Marker>
           ))}
+          {puntosInteres.map((p, i) => (
+            <Marker key={`poi-${i}`} coordinate={{ latitude: p.lat, longitude: p.lng }}>
+              <View style={[s.poiCircle, { backgroundColor: POI_TIPOS.find(t => t.key === p.tipo)!.color }]}>
+                <Text style={s.poiEmoji}>{POI_TIPOS.find(t => t.key === p.tipo)!.emoji}</Text>
+              </View>
+            </Marker>
+          ))}
           {routeCoords.length > 0 && (
             <Polyline coordinates={routeCoords} strokeColor={colors.primary} strokeWidth={4} />
           )}
         </MapView>
+
+        {/* Selector de modo */}
+        <View style={s.modeSelector} pointerEvents="box-none">
+          <View style={s.modeTabs}>
+            <TouchableOpacity style={[s.modeTab, mode === 'parada' && s.modeTabActive]} onPress={() => setMode('parada')}>
+              <Text style={[s.modeTabText, mode === 'parada' && s.modeTabTextActive]}>Parada</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.modeTab, mode === 'poi' && s.modeTabActive]} onPress={() => setMode('poi')}>
+              <Text style={[s.modeTabText, mode === 'poi' && s.modeTabTextActive]}>Punto de interés</Text>
+            </TouchableOpacity>
+          </View>
+          {mode === 'poi' && (
+            <View style={s.poiTiposRow}>
+              {POI_TIPOS.map(t => (
+                <TouchableOpacity
+                  key={t.key}
+                  style={[s.poiTipoChip, poiTipo === t.key && { backgroundColor: t.color }]}
+                  onPress={() => setPoiTipo(t.key)}
+                >
+                  <Text style={s.poiTipoEmoji}>{t.emoji}</Text>
+                  <Text style={[s.poiTipoText, poiTipo === t.key && { color: 'white' }]}>{t.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
         <View style={s.mapHint} pointerEvents="none">
           <Ionicons name="location-outline" size={12} color={colors.muted} />
-          <Text style={s.mapHintText}>Toca el mapa para añadir paradas</Text>
+          <Text style={s.mapHintText}>{mode === 'poi' ? 'Toca el mapa para añadir un punto de interés' : 'Toca el mapa para añadir paradas'}</Text>
         </View>
       </View>
 
@@ -253,6 +321,35 @@ export default function CrearRutaScreen() {
               </View>
             ))}
             <TouchableOpacity style={s.clearBtn} onPress={() => { setWaypoints([]); setRouteCoords([]); }}>
+              <Ionicons name="trash-outline" size={13} color={colors.danger} />
+              <Text style={{ color: colors.danger, fontSize: 11 }}>Limpiar</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Puntos de interés list */}
+      {puntosInteres.length > 0 && (
+        <View style={s.waypointBar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
+            {puntosInteres.map((p, i) => {
+              const meta = POI_TIPOS.find(t => t.key === p.tipo)!;
+              return (
+                <View key={i} style={s.waypointChip}>
+                  <View style={[s.poiBubble, { backgroundColor: meta.color }]}>
+                    <Text style={s.poiBubbleEmoji}>{meta.emoji}</Text>
+                  </View>
+                  {p.nombre !== undefined
+                    ? <Text style={s.waypointName} numberOfLines={1} ellipsizeMode="tail">{p.nombre}</Text>
+                    : <ActivityIndicator size="small" color={colors.primary} style={{ marginHorizontal: 4 }} />
+                  }
+                  <TouchableOpacity onPress={() => removePoi(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close" size={13} color={colors.muted} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+            <TouchableOpacity style={s.clearBtn} onPress={() => setPuntosInteres([])}>
               <Ionicons name="trash-outline" size={13} color={colors.danger} />
               <Text style={{ color: colors.danger, fontSize: 11 }}>Limpiar</Text>
             </TouchableOpacity>
@@ -428,6 +525,20 @@ const s = StyleSheet.create({
   mapHintText: { color: colors.muted, fontSize: 11 },
   markerCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'white' },
   markerLabel: { color: 'white', fontWeight: '800', fontSize: 11 },
+  poiCircle: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'white' },
+  poiEmoji: { fontSize: 13 },
+  poiBubble: { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  poiBubbleEmoji: { fontSize: 10 },
+  modeSelector: { position: 'absolute', top: 10, alignSelf: 'center', alignItems: 'center', gap: 6 },
+  modeTabs: { flexDirection: 'row', backgroundColor: colors.surface1 + 'EE', borderRadius: radius.full, padding: 3, borderWidth: 1, borderColor: colors.border },
+  modeTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full },
+  modeTabActive: { backgroundColor: colors.primary },
+  modeTabText: { color: colors.muted, fontSize: 11, fontWeight: '700' },
+  modeTabTextActive: { color: colors.primaryFg },
+  poiTiposRow: { flexDirection: 'row', gap: 4, backgroundColor: colors.surface1 + 'EE', borderRadius: radius.full, padding: 3, borderWidth: 1, borderColor: colors.border },
+  poiTipoChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.full },
+  poiTipoEmoji: { fontSize: 11 },
+  poiTipoText: { color: colors.muted, fontSize: 10, fontWeight: '700' },
   searchContainer: { borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface1 },
   searchInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 4, paddingVertical: 2 },
   searchInput: { flex: 1, color: colors.foreground, fontSize: 14, paddingVertical: 10, paddingHorizontal: 8 },

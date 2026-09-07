@@ -46,7 +46,7 @@ router.post('/avatar', requireAuth, (req, res) => {
       return;
     }
 
-    const apiUrl = `http://localhost:${process.env.PORT ?? 3001}`;
+    const apiUrl = `${req.protocol}://${req.get('host')}`;
     const url = `${apiUrl}/uploads/avatars/${req.file.filename}`;
     res.json({ url });
   });

@@ -25,6 +25,11 @@ router.get('/', async (_req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const { tipo, descripcion, via, severidad, lat, lng, expiry_hours } = req.body;
+
+  if (typeof lat !== 'number' || typeof lng !== 'number' || Number.isNaN(lat) || Number.isNaN(lng)) {
+    res.status(400).json({ error: 'Faltan las coordenadas de la incidencia' }); return;
+  }
+
   const hours = Number(expiry_hours) || EXPIRY_HOURS;
   const expires_at = new Date(Date.now() + hours * 60 * 60 * 1000);
   const id = uuidv4();
@@ -54,11 +59,19 @@ router.post('/:id/confirmar', requireAuth, async (req, res) => {
       'DELETE FROM confirmaciones_incidencia WHERE incidencia_id = ? AND user_id = ?',
       [incidenciaId, userId]
     );
+    await pool.execute(
+      'UPDATE incidencias SET confirmaciones = GREATEST(confirmaciones - 1, 0), updated_at = NOW() WHERE id = ?',
+      [incidenciaId]
+    );
     res.json({ confirmado: false });
   } else {
     await pool.execute(
       'INSERT INTO confirmaciones_incidencia (incidencia_id, user_id) VALUES (?, ?)',
       [incidenciaId, userId]
+    );
+    await pool.execute(
+      'UPDATE incidencias SET confirmaciones = confirmaciones + 1, updated_at = NOW() WHERE id = ?',
+      [incidenciaId]
     );
     res.json({ confirmado: true });
   }

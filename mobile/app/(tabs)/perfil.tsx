@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Alert, RefreshControl } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { getSession, subscribe } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
-import { getSolicitudesAmistad, getAmigosCount } from '@/lib/api';
+import { getSolicitudesAmistad, getAmigosCount, getInvitacionesGrupo, getNoLeidosGrupo, getMe, getRutas, logout } from '@/lib/api';
 import ChatAccess from '@/components/ChatAccess';
 
 function SinSesion() {
@@ -47,6 +47,8 @@ export default function PerfilScreen() {
   const [rutasCount, setRutasCount] = useState(0);
   const [sinSesion, setSinSesion] = useState(false);
   const [solicitudesCount, setSolicitudesCount] = useState(0);
+  const [gruposInvitacionesCount, setGruposInvitacionesCount] = useState(0);
+  const [gruposNoLeidosCount, setGruposNoLeidosCount] = useState(0);
   const [friendCount, setFriendCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -55,11 +57,11 @@ export default function PerfilScreen() {
   }, []));
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+    const unsubscribe = subscribe((session) => {
       if (!session) { setSinSesion(true); setProfile(null); }
       else { setSinSesion(false); load(); }
     });
-    return () => subscription.unsubscribe();
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -69,23 +71,26 @@ export default function PerfilScreen() {
   if (sinSesion) return null;
 
   async function load() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { setSinSesion(true); return; }
 
-    const [{ data: p }, { data: m }, { data: r }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', session.user.id).single(),
-      supabase.from('motos').select('marca_modelo, cilindrada, tipo').eq('user_id', session.user.id),
-      supabase.from('rutas').select('id', { count: 'exact' }).eq('user_id', session.user.id).eq('publicada', true),
-    ]);
+    const me = await getMe(session.token);
+    if (me) {
+      setProfile(me);
+      setMotos(me.motos ?? []);
+      getAmigosCount(me.username).then(setFriendCount);
+    }
 
-    if (p) setProfile(p);
-    setMotos(m ?? []);
-    setRutasCount(r?.length ?? 0);
+    const rutas = await getRutas({ username: me?.username });
+    setRutasCount(rutas.length);
 
-    const solicitudes = await getSolicitudesAmistad(session.access_token);
+    const solicitudes = await getSolicitudesAmistad(session.token);
     setSolicitudesCount(solicitudes.length);
 
-    if (p) getAmigosCount(p.username).then(setFriendCount);
+    const invitacionesGrupo = await getInvitacionesGrupo(session.token);
+    setGruposInvitacionesCount(invitacionesGrupo.length);
+
+    setGruposNoLeidosCount(await getNoLeidosGrupo(session.token));
   }
 
   async function onRefresh() {
@@ -99,9 +104,8 @@ export default function PerfilScreen() {
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Cerrar sesión', style: 'destructive', onPress: async () => {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) await supabase.from('profiles').update({ online: false, last_seen: new Date().toISOString() }).eq('id', session.user.id);
-          await supabase.auth.signOut();
+          const session = await getSession();
+          if (session) await logout(session.token);
           router.replace('/entrar');
         },
       },
@@ -202,6 +206,17 @@ export default function PerfilScreen() {
             </View>
           )}
           <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: solicitudesCount > 0 ? 8 : 'auto' }} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.actionBtn} onPress={() => router.push('/grupos' as any)}>
+          <Ionicons name="people-outline" size={18} color={colors.foreground} />
+          <Text style={s.actionText}>Mis grupos</Text>
+          {(gruposInvitacionesCount + gruposNoLeidosCount) > 0 && (
+            <View style={[s.badge, { marginLeft: 'auto' }]}>
+              <Text style={s.badgeText}>{gruposInvitacionesCount + gruposNoLeidosCount}</Text>
+            </View>
+          )}
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: (gruposInvitacionesCount + gruposNoLeidosCount) > 0 ? 8 : 'auto' }} />
         </TouchableOpacity>
 
         <TouchableOpacity style={[s.actionBtn, s.logoutBtn]} onPress={handleLogout}>

@@ -1,60 +1,61 @@
 # Arrancar el proyecto en otro ordenador
 
-## 1. Clonar e instalar dependencias
+Guía resumida — ver el README para más detalle.
+
+La base de datos vive en Clever Cloud (MySQL en la nube) — no hace falta instalar nada de base de datos en local, solo pedir las credenciales del addon.
+
+## Pasos rápidos
 
 ```sh
-git clone <repo>
-cd Motos
-npm install            # raíz (husky/commitlint)
+# 1. Clonar e instalar
+git clone <url-del-repo>
+cd TFG-Motos
+npm install
 cd backend && npm install
 cd ../frontend && npm install
-cd ../mobile && npm install
+
+# 2. Crear los .env con las credenciales de Clever Cloud (ver plantillas abajo)
+
+# 3. Arrancar
+start-backend.bat    # → http://localhost:3001
+start-frontend.bat   # → http://localhost:8080
 ```
 
-## 2. Variables de entorno (`.env`)
+---
 
-Los `.env` **no se suben a git** (están en `.gitignore`), hay que crearlos a mano en cada ordenador nuevo.
+## Plantillas `.env`
 
 ### `backend/.env`
 
-```
+```env
 PORT=3001
-SUPABASE_URL=...
-SUPABASE_SERVICE_KEY=...
-FRONTEND_URL=http://localhost:5173
-ORS_API_KEY=...
-```
+FRONTEND_URL=http://localhost:8080
 
-⚠️ `SUPABASE_SERVICE_KEY` es secreta (bypasa RLS) — pásala por un canal seguro, no por git ni chat público.
+# Clever Cloud → addon MySQL → Dashboard → "Database Credentials"
+DB_HOST=<host>.services.clever-cloud.com
+DB_PORT=3306
+DB_USER=<usuario-del-addon>
+DB_PASSWORD=<password-del-addon>
+DB_NAME=<nombre-de-la-base>
+
+# Cualquier cadena larga y aleatoria
+# Generar: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+JWT_SECRET=<cadena-aleatoria-larga>
+
+# Gratis en https://openrouteservice.org → Dashboard → API Keys
+ORS_API_KEY=<tu-api-key-de-openrouteservice>
+```
 
 ### `frontend/.env`
 
-```
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_ANON_KEY=...
+```env
 VITE_API_URL=http://localhost:3001
 ```
 
 ### `mobile/.env`
 
-```
-EXPO_PUBLIC_SUPABASE_URL=...
-EXPO_PUBLIC_SUPABASE_ANON_KEY=...
-EXPO_PUBLIC_API_URL=http://<IP-LOCAL-DEL-ORDENADOR>:3001
-```
-
-⚠️ Este es el que más suele fallar al cambiar de máquina: como Expo Go corre en un móvil físico (u otro emulador), `localhost` no sirve — tiene que ser la IP local del ordenador en la red Wi-Fi. Hay que mirar la IP con `ipconfig` (Windows) y actualizar esta línea cada vez que se cambie de red.
-
-Las claves `SUPABASE_*_ANON_KEY` / `SUPABASE_*_URL` no son secretas (son públicas por diseño), se pueden copiar tal cual del proyecto Supabase.
-
-## 3. Base de datos
-
-No hace falta tocar nada si se sigue usando el **mismo proyecto Supabase** (los `.env` ya apuntan a él) — los datos y migraciones ya están aplicados ahí. Solo haría falta volver a correr las migraciones de `supabase/migrations/` si se usara un proyecto Supabase distinto.
-
-## 4. Arrancar
-
-```sh
-start-backend.bat     # o: cd backend && npm run dev
-start-frontend.bat    # o: cd frontend && npm run dev   → http://localhost:8080
-start-mobile.bat      # o: cd mobile && npm run start    → Expo Go
+```env
+# IP del ordenador donde corre el backend (no localhost)
+# Obtener con: ipconfig → "Dirección IPv4"
+EXPO_PUBLIC_API_URL=http://<IP-LOCAL>:3001
 ```

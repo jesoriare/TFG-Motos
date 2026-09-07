@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { supabase } from '@/lib/supabase';
+import { getSession, subscribe } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
-import { getSolicitudesAmistad } from '@/lib/api';
+import { getSolicitudesAmistad, getMe } from '@/lib/api';
 
 const TABS = [
   { name: 'index',      label: 'Inicio',   icon: 'home'     },
@@ -21,26 +21,25 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const [solicitudesCount, setSolicitudesCount] = useState(0);
 
   async function loadSolicitudesCount() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSession();
     if (!session) { setSolicitudesCount(0); return; }
-    const solicitudes = await getSolicitudesAmistad(session.access_token);
+    const solicitudes = await getSolicitudesAmistad(session.token);
     setSolicitudesCount(solicitudes.length);
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    getSession().then(async (session) => {
       if (!session) return;
-      const { data } = await supabase.from('profiles').select('avatar_url').eq('id', session.user.id).single();
-      if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+      const me = await getMe(session.token);
+      if (me?.avatar_url) setAvatarUrl(me.avatar_url);
     });
     loadSolicitudesCount();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+    const unsubscribe = subscribe((session) => {
       if (!session) { setAvatarUrl(null); setSolicitudesCount(0); return; }
-      supabase.from('profiles').select('avatar_url').eq('id', session.user.id).single()
-        .then(({ data }) => { if (data?.avatar_url) setAvatarUrl(data.avatar_url); });
+      getMe(session.token).then((me) => { if (me?.avatar_url) setAvatarUrl(me.avatar_url); });
       loadSolicitudesCount();
     });
-    return () => subscription.unsubscribe();
+    return unsubscribe;
   }, []);
 
   // Refrescar el contador de solicitudes al cambiar de pestaña (por si se aceptó una)
@@ -102,7 +101,7 @@ export default function TabsLayout() {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(() => setChecked(true));
+    getSession().then(() => setChecked(true));
   }, []);
 
   if (!checked) return null;

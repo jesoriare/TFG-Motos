@@ -4,7 +4,7 @@ import {
   StyleSheet, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '@/lib/supabase';
+import { registrar } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
 
 export default function RegistroScreen() {
@@ -27,25 +27,15 @@ export default function RegistroScreen() {
     }
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email: correo,
-      password,
-      options: { data: { nombre, apellidos, username } },
+    const { error } = await registrar({
+      nombre, apellidos, email: correo, username, password,
+      marca_modelo: moto || undefined, cilindrada: cilindrada || undefined,
     });
 
     if (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', error);
       setLoading(false);
       return;
-    }
-
-    if (data.user && moto && cilindrada) {
-      await supabase.from('motos').insert({
-        user_id: data.user.id,
-        marca_modelo: moto,
-        cilindrada: parseInt(cilindrada),
-        principal: true,
-      });
     }
 
     setLoading(false);

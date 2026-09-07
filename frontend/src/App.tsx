@@ -15,6 +15,11 @@ import SolicitudesPage from "./pages/SolicitudesPage";
 import AmigosPage from "./pages/AmigosPage";
 import ChatsPage from "./pages/ChatsPage";
 import ChatPage from "./pages/ChatPage";
+import GruposPage from "./pages/GruposPage";
+import GruposPublicosPage from "./pages/GruposPublicosPage";
+import CrearGrupoPage from "./pages/CrearGrupoPage";
+import GrupoDetallePage from "./pages/GrupoDetallePage";
+import GrupoChatPage from "./pages/GrupoChatPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +38,11 @@ const App = () => (
           <Route path="/solicitudes" element={<SolicitudesPage />} />
           <Route path="/chats" element={<ChatsPage />} />
           <Route path="/chats/:id" element={<ChatPage />} />
+          <Route path="/grupos" element={<GruposPage />} />
+          <Route path="/grupos/publicos" element={<GruposPublicosPage />} />
+          <Route path="/grupos/crear" element={<CrearGrupoPage />} />
+          <Route path="/grupos/:id" element={<GrupoDetallePage />} />
+          <Route path="/grupos/:id/chat" element={<GrupoChatPage />} />
           <Route path="/perfil/:username/amigos" element={<AmigosPage />} />
           <Route path="/perfil/:username" element={<ProfilePage />} />
           <Route path="/rutas/crear" element={<CrearRutaPage />} />

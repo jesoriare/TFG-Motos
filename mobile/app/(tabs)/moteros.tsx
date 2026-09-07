@@ -3,7 +3,7 @@ import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Activity
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getRiders } from '@/lib/api';
-import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
 import ChatAccess from '@/components/ChatAccess';
 
@@ -21,31 +21,33 @@ export default function MoteroScreen() {
   const [riders, setRiders] = useState<Rider[]>([]);
   const [query, setQuery] = useState('');
   const [tipo, setTipo] = useState('Todos');
+  const [cilMin, setCilMin] = useState('');
+  const [cilMax, setCilMax] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id ?? null));
+    getSession().then((session) => setCurrentUserId(session?.user.id ?? null));
   }, []);
 
-  const fetch = useCallback(async (q: string, t: string) => {
+  const fetch = useCallback(async (q: string, t: string, min: string, max: string) => {
     setLoading(true);
-    const data = await getRiders(q, t);
+    const data = await getRiders(q, t, min, max);
     setRiders(data ?? []);
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetch('', 'Todos'); }, [fetch]);
+  useEffect(() => { fetch('', 'Todos', '', ''); }, [fetch]);
 
   useEffect(() => {
-    const t = setTimeout(() => fetch(query, tipo), 300);
+    const t = setTimeout(() => fetch(query, tipo, cilMin, cilMax), 300);
     return () => clearTimeout(t);
-  }, [query, tipo, fetch]);
+  }, [query, tipo, cilMin, cilMax, fetch]);
 
   async function onRefresh() {
     setRefreshing(true);
-    await fetch(query, tipo);
+    await fetch(query, tipo, cilMin, cilMax);
     setRefreshing(false);
   }
 
@@ -78,7 +80,7 @@ export default function MoteroScreen() {
         data={TIPOS}
         keyExtractor={i => i}
         showsHorizontalScrollIndicator={false}
-        style={{ maxHeight: 40, marginBottom: 14 }}
+        style={{ maxHeight: 40, marginBottom: 10 }}
         contentContainerStyle={{ gap: 8, paddingHorizontal: 20 }}
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -89,6 +91,33 @@ export default function MoteroScreen() {
           </TouchableOpacity>
         )}
       />
+
+      {/* Filtro cilindrada */}
+      <View style={s.cilRow}>
+        <Text style={s.cilLabel}>CILINDRADA:</Text>
+        <TextInput
+          style={s.cilInput}
+          value={cilMin}
+          onChangeText={setCilMin}
+          placeholder="Mín cc"
+          placeholderTextColor={colors.muted}
+          keyboardType="number-pad"
+        />
+        <Text style={s.cilLabel}>—</Text>
+        <TextInput
+          style={s.cilInput}
+          value={cilMax}
+          onChangeText={setCilMax}
+          placeholder="Máx cc"
+          placeholderTextColor={colors.muted}
+          keyboardType="number-pad"
+        />
+        {(cilMin || cilMax) ? (
+          <TouchableOpacity onPress={() => { setCilMin(''); setCilMax(''); }}>
+            <Ionicons name="close-circle" size={18} color={colors.muted} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
       {/* Lista */}
       {loading ? (
@@ -159,6 +188,12 @@ const s = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
   chipTextActive: { color: colors.primaryFg },
+  cilRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginBottom: 14 },
+  cilLabel: { color: colors.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  cilInput: {
+    width: 72, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2,
+    borderRadius: radius.md, paddingHorizontal: 8, paddingVertical: 6, color: colors.foreground, fontSize: 12,
+  },
   card: { backgroundColor: colors.surface1, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 10 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: { width: 44, height: 44, borderRadius: 10, backgroundColor: colors.primary + '30', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
