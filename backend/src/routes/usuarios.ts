@@ -117,7 +117,11 @@ router.patch('/me/push-token', requireAuth, async (req, res) => {
 
 // GET /usuarios — listar moteros con filtros
 router.get('/', async (req, res) => {
-  const { search, tipo } = req.query as { search?: string; tipo?: string };
+  const { search, tipo, cilindrada_min, cilindrada_max } = req.query as {
+    search?: string; tipo?: string; cilindrada_min?: string; cilindrada_max?: string;
+  };
+  const cilMin = cilindrada_min ? Number(cilindrada_min) : null;
+  const cilMax = cilindrada_max ? Number(cilindrada_max) : null;
 
   const [rows] = await pool.execute<any[]>(`
     SELECT p.id, p.nombre, p.apellidos, p.username, p.avatar_url, p.zona, p.verified, p.online,
@@ -146,6 +150,12 @@ router.get('/', async (req, res) => {
 
   if (tipo) {
     result = result.filter(u => u.motos.some((m: any) => m.tipo?.toLowerCase() === tipo.toLowerCase()));
+  }
+  if (cilMin !== null && !Number.isNaN(cilMin)) {
+    result = result.filter(u => u.motos.some((m: any) => m.cilindrada >= cilMin));
+  }
+  if (cilMax !== null && !Number.isNaN(cilMax)) {
+    result = result.filter(u => u.motos.some((m: any) => m.cilindrada <= cilMax));
   }
   if (search) {
     const s = search.toLowerCase();

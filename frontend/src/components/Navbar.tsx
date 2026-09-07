@@ -1,7 +1,7 @@
-import { MapPin, Menu, X, User, LogOut, UserPlus, MessageCircle } from "lucide-react";
+import { MapPin, Menu, X, User, LogOut, UserPlus, MessageCircle, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getMe, getToken, logout, type AuthUser } from "@/lib/api";
+import { getMe, getToken, logout, getNoLeidosGrupo, type AuthUser } from "@/lib/api";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -15,6 +15,8 @@ export default function Navbar() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [solicitudesCount, setSolicitudesCount] = useState(0);
   const [noLeidosCount, setNoLeidosCount] = useState(0);
+  const [invitacionesGrupoCount, setInvitacionesGrupoCount] = useState(0);
+  const [noLeidosGrupoCount, setNoLeidosGrupoCount] = useState(0);
   const navigate = useNavigate();
 
   const links = [
@@ -31,6 +33,8 @@ export default function Navbar() {
       const token = getToken()!;
       loadSolicitudesCount(token);
       loadNoLeidosCount(token);
+      loadInvitacionesGrupoCount(token);
+      loadNoLeidosGrupoCount(token);
       // Cargar avatar desde la API
       try {
         const res = await fetch(`${API_URL}/usuarios/${me.username}`);
@@ -43,6 +47,8 @@ export default function Navbar() {
       setAvatarUrl(null);
       setSolicitudesCount(0);
       setNoLeidosCount(0);
+      setInvitacionesGrupoCount(0);
+      setNoLeidosGrupoCount(0);
     }
   }
 
@@ -63,6 +69,19 @@ export default function Navbar() {
     try {
       const res = await fetch(`${API_URL}/chat/no-leidos`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setNoLeidosCount((await res.json()).count);
+    } catch { /* backend no disponible */ }
+  }
+
+  async function loadInvitacionesGrupoCount(token: string) {
+    try {
+      const res = await fetch(`${API_URL}/grupos/invitaciones`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setInvitacionesGrupoCount((await res.json()).length);
+    } catch { /* backend no disponible */ }
+  }
+
+  async function loadNoLeidosGrupoCount(token: string) {
+    try {
+      setNoLeidosGrupoCount(await getNoLeidosGrupo(token));
     } catch { /* backend no disponible */ }
   }
 
@@ -111,6 +130,16 @@ export default function Navbar() {
                 {noLeidosCount > 0 && (
                   <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                     {noLeidosCount}
+                  </span>
+                )}
+              </button>
+
+              <button onClick={() => navigate("/grupos")} title="Mis grupos"
+                className="relative h-9 w-9 rounded-full border border-border bg-surface-3 flex items-center justify-center hover:border-primary/50 hover:text-primary transition-colors text-muted-foreground">
+                <Users className="h-4 w-4" />
+                {(invitacionesGrupoCount + noLeidosGrupoCount) > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {invitacionesGrupoCount + noLeidosGrupoCount}
                   </span>
                 )}
               </button>
@@ -179,6 +208,13 @@ export default function Navbar() {
                 <span className="flex items-center gap-2"><MessageCircle className="h-4 w-4" />Mensajes</span>
                 {noLeidosCount > 0 && (
                   <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{noLeidosCount}</span>
+                )}
+              </button>
+              <button onClick={() => { setOpen(false); navigate("/grupos"); }}
+                className="flex items-center justify-between rounded-md border border-border bg-surface-3 px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors">
+                <span className="flex items-center gap-2"><Users className="h-4 w-4" />Mis grupos</span>
+                {(invitacionesGrupoCount + noLeidosGrupoCount) > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{invitacionesGrupoCount + noLeidosGrupoCount}</span>
                 )}
               </button>
             </div>

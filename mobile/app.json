@@ -22,7 +22,13 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "RodadaMoto usa tu ubicación para situar en el mapa las incidencias que reportas."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

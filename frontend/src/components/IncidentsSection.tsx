@@ -1,5 +1,8 @@
+import 'leaflet/dist/leaflet.css';
 import { useState, useEffect } from "react";
-import { AlertTriangle, Shield, Clock, Eye, CheckCircle, MapPin, ArrowRight, Trash2 } from "lucide-react";
+import { AlertTriangle, Shield, Clock, Eye, CheckCircle, MapPin, ArrowRight, Trash2, LocateFixed } from "lucide-react";
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
 import { getMe, getToken } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,6 +13,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) ?? 'http://localhost:3001';
+
+const SPAIN_CENTER: [number, number] = [40.4, -3.7];
+
+const incidentIcon = L.divIcon({
+  html: `<div style="background:#EF4444;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.5)"></div>`,
+  className: '',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
+function MapClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }) {
+  useMapEvents({ click: e => onPick(e.latlng.lat, e.latlng.lng) });
+  return null;
+}
 
 interface Incidencia {
   id: string;
@@ -81,6 +98,24 @@ export default function IncidentsSection() {
   const [error, setError] = useState<string | null>(null);
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
 
+  // Ubicación de la incidencia a reportar
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'locating' | 'ok' | 'denied'>('locating');
+
+  function locate() {
+    if (!navigator.geolocation) { setGeoStatus('denied'); return; }
+    setGeoStatus('locating');
+    navigator.geolocation.getCurrentPosition(
+      pos => { setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoStatus('ok'); },
+      () => setGeoStatus('denied'),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }
+
+  useEffect(() => {
+    if (modalOpen && coords === null) locate();
+  }, [modalOpen]);
+
   async function fetchIncidencias() {
     try {
       const res = await fetch(`${API_URL}/incidencias`);
@@ -134,7 +169,7 @@ export default function IncidentsSection() {
   }
 
   async function handleReportar() {
-    if (!form.descripcion || !form.via) return;
+    if (!form.descripcion || !form.via || !coords) return;
     setError(null);
     setEnviando(true);
     const token = getToken();
@@ -146,12 +181,13 @@ export default function IncidentsSection() {
     const res = await fetch(`${API_URL}/incidencias`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ ...form, lat: 0, lng: 0 }),
+      body: JSON.stringify({ ...form, lat: coords.lat, lng: coords.lng }),
     });
     setEnviando(false);
     if (res.ok) {
       setModalOpen(false);
       setForm({ tipo: 'control_gc', descripcion: '', via: '', severidad: 'medium', expiry_hours: '2' });
+      setCoords(null);
       fetchIncidencias();
       toast({ title: '¡Incidencia reportada!', description: 'Gracias por avisar a la comunidad.' });
     } else {
@@ -272,7 +308,7 @@ export default function IncidentsSection() {
         </div>
       </div>
 
-      <Dialog open={modalOpen} onOpenChange={v => { setModalOpen(v); if (v) setError(null); }}>
+      <Dialog open={modalOpen} onOpenChange={v => { setModalOpen(v); if (v) setError(null); else setCoords(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reportar incidencia</DialogTitle>
@@ -312,6 +348,49 @@ export default function IncidentsSection() {
               />
             </div>
             <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ubicación *</label>
+                <button
+                  type="button"
+                  onClick={locate}
+                  className="flex items-center gap-1 text-xs text-primary hover:opacity-80 transition-opacity"
+                >
+                  <LocateFixed className="h-3 w-3" /> {geoStatus === 'locating' ? 'Localizando...' : 'Usar mi ubicación'}
+                </button>
+              </div>
+              <div className="h-40 rounded-md overflow-hidden border border-border">
+                <MapContainer
+                  center={coords ?? SPAIN_CENTER}
+                  zoom={coords ? 14 : 5}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a>'
+                  />
+                  <MapClickHandler onPick={(lat, lng) => setCoords({ lat, lng })} />
+                  {coords && (
+                    <Marker
+                      position={coords}
+                      icon={incidentIcon}
+                      draggable
+                      eventHandlers={{
+                        dragend: (e) => {
+                          const m = e.target.getLatLng();
+                          setCoords({ lat: m.lat, lng: m.lng });
+                        },
+                      }}
+                    />
+                  )}
+                </MapContainer>
+              </div>
+              <p className="text-xs text-muted-foreground/60 mt-1">
+                {geoStatus === 'denied' && !coords
+                  ? 'No pudimos obtener tu ubicación — toca el mapa para marcarla.'
+                  : 'Arrastra el marcador o toca el mapa para ajustar el punto exacto.'}
+              </p>
+            </div>
+            <div>
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Descripción *</label>
               <Textarea
                 value={form.descripcion}
@@ -338,7 +417,7 @@ export default function IncidentsSection() {
             )}
             <Button
               onClick={handleReportar}
-              disabled={enviando || !form.via || !form.descripcion}
+              disabled={enviando || !form.via || !form.descripcion || !coords}
               className="w-full"
             >
               {enviando ? 'Enviando...' : 'Enviar reporte'}

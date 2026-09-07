@@ -3,11 +3,15 @@ import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
   TouchableOpacity, Modal, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform, RefreshControl,
 } from 'react-native';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { getIncidencias, confirmarIncidencia, eliminarIncidencia, crearIncidencia } from '@/lib/api';
 import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
 import ChatAccess from '@/components/ChatAccess';
+
+const SPAIN_CENTER = { latitude: 40.4, longitude: -3.7 };
 
 const TIPO_ICON: Record<string, string> = {
   control_gc: 'shield', radar: 'speedometer', firme_mal_estado: 'warning',
@@ -62,6 +66,26 @@ export default function IncidenciasScreen() {
   const [enviando, setEnviando] = useState(false);
   const [form, setForm] = useState({ tipo: 'control_gc', descripcion: '', via: '', severidad: 'medium', expiry_hours: 2 });
 
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'locating' | 'ok' | 'denied'>('locating');
+
+  async function locate() {
+    setGeoStatus('locating');
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') { setGeoStatus('denied'); return; }
+    try {
+      const pos = await Location.getCurrentPositionAsync({});
+      setCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      setGeoStatus('ok');
+    } catch {
+      setGeoStatus('denied');
+    }
+  }
+
+  useEffect(() => {
+    if (modalVisible && coords === null) locate();
+  }, [modalVisible]);
+
   async function fetchIncidencias() {
     const data = await getIncidencias();
     setIncidencias(data ?? []);
@@ -112,6 +136,10 @@ export default function IncidenciasScreen() {
       Alert.alert('Error', 'Rellena la descripción y la vía');
       return;
     }
+    if (!coords) {
+      Alert.alert('Error', 'Marca la ubicación de la incidencia en el mapa');
+      return;
+    }
     setEnviando(true);
 
     const session = await getSession();
@@ -126,7 +154,7 @@ export default function IncidenciasScreen() {
       descripcion: form.descripcion,
       via: form.via,
       severidad: form.severidad,
-      lat: 0, lng: 0,
+      lat: coords.latitude, lng: coords.longitude,
       expiry_hours: form.expiry_hours,
     }, session.token);
 
@@ -135,6 +163,7 @@ export default function IncidenciasScreen() {
 
     setModalVisible(false);
     setForm({ tipo: 'control_gc', descripcion: '', via: '', severidad: 'medium', expiry_hours: 2 });
+    setCoords(null);
     Alert.alert('¡Gracias!', 'Incidencia reportada correctamente');
     fetchIncidencias();
   }
@@ -219,13 +248,13 @@ export default function IncidenciasScreen() {
         />
       )}
 
-      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
+      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => { setModalVisible(false); setCoords(null); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={s.modalOverlay}>
             <View style={s.modalCard}>
               <View style={s.modalHeader}>
                 <Text style={s.modalTitle}>Reportar incidencia</Text>
-                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <TouchableOpacity onPress={() => { setModalVisible(false); setCoords(null); }}>
                   <Ionicons name="close" size={22} color={colors.muted} />
                 </TouchableOpacity>
               </View>
@@ -266,6 +295,36 @@ export default function IncidenciasScreen() {
                   placeholder="Ej: A-4, km 47 dirección Córdoba"
                   placeholderTextColor={colors.muted + '60'}
                 />
+
+                <View style={s.mapLabelRow}>
+                  <Text style={s.label}>UBICACIÓN *</Text>
+                  <TouchableOpacity style={s.locateBtn} onPress={locate}>
+                    <Ionicons name="locate" size={12} color={colors.primary} />
+                    <Text style={s.locateBtnText}>{geoStatus === 'locating' ? 'Localizando...' : 'Usar mi ubicación'}</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={s.mapPicker}>
+                  <MapView
+                    style={{ flex: 1 }}
+                    provider={PROVIDER_DEFAULT}
+                    initialRegion={{ ...(coords ?? SPAIN_CENTER), latitudeDelta: coords ? 0.05 : 6, longitudeDelta: coords ? 0.05 : 6 }}
+                    region={coords ? { ...coords, latitudeDelta: 0.05, longitudeDelta: 0.05 } : undefined}
+                    onPress={(e) => setCoords(e.nativeEvent.coordinate)}
+                  >
+                    {coords && (
+                      <Marker
+                        coordinate={coords}
+                        draggable
+                        onDragEnd={(e) => setCoords(e.nativeEvent.coordinate)}
+                      />
+                    )}
+                  </MapView>
+                </View>
+                <Text style={s.hint}>
+                  {geoStatus === 'denied' && !coords
+                    ? 'No pudimos obtener tu ubicación — toca el mapa para marcarla.'
+                    : 'Arrastra el marcador o toca el mapa para ajustar el punto exacto.'}
+                </Text>
 
                 <Text style={s.label}>TIEMPO DE EXPIRACIÓN</Text>
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
@@ -341,6 +400,11 @@ const s = StyleSheet.create({
   sevBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 8, alignItems: 'center', backgroundColor: colors.surface2 },
   sevBtnText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
   input: { backgroundColor: colors.surface3, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, color: colors.foreground, fontSize: 14, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 14 },
+  mapLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  locateBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locateBtnText: { color: colors.primary, fontSize: 11, fontWeight: '700' },
+  mapPicker: { height: 160, borderRadius: radius.md, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  hint: { color: colors.muted, fontSize: 11, opacity: 0.7, marginTop: 6, marginBottom: 14 },
   submitBtn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 4, marginBottom: 20 },
   submitBtnText: { color: colors.primaryFg, fontWeight: '800', fontSize: 14, letterSpacing: 1.5 },
 });

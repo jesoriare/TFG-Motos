@@ -18,6 +18,7 @@ DROP TRIGGER IF EXISTS trg_sync_conversacion_on_mensaje;
 DROP TABLE IF EXISTS conversaciones_ocultas;
 DROP TABLE IF EXISTS mensajes;
 DROP TABLE IF EXISTS conversaciones;
+DROP TABLE IF EXISTS invitaciones_grupo;
 DROP TABLE IF EXISTS solicitudes_amistad;
 DROP TABLE IF EXISTS confirmaciones_incidencia;
 DROP TABLE IF EXISTS incidencias;
@@ -27,6 +28,7 @@ DROP TABLE IF EXISTS rutas;
 DROP TABLE IF EXISTS motos;
 DROP TABLE IF EXISTS puntos_interes;
 DROP TABLE IF EXISTS ubicaciones;
+DROP TABLE IF EXISTS mensajes_grupo;
 DROP TABLE IF EXISTS miembros_grupo;
 DROP TABLE IF EXISTS grupos;
 DROP TABLE IF EXISTS profiles;
@@ -218,6 +220,8 @@ CREATE TABLE conversaciones_ocultas (
 CREATE TABLE grupos (
   id         CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   nombre     VARCHAR(255) NOT NULL,
+  descripcion TEXT,
+  privacidad ENUM('privado', 'publico') NOT NULL DEFAULT 'privado',
   lider_id   CHAR(36)     NOT NULL,
   ruta_id    CHAR(36),
   activo     TINYINT(1)   NOT NULL DEFAULT 1,
@@ -227,12 +231,35 @@ CREATE TABLE grupos (
 );
 
 CREATE TABLE miembros_grupo (
-  grupo_id  CHAR(36) NOT NULL,
-  user_id   CHAR(36) NOT NULL,
-  joined_at DATETIME NOT NULL DEFAULT NOW(),
+  grupo_id     CHAR(36) NOT NULL,
+  user_id      CHAR(36) NOT NULL,
+  joined_at    DATETIME NOT NULL DEFAULT NOW(),
+  last_read_at DATETIME NOT NULL DEFAULT NOW(),
   PRIMARY KEY (grupo_id, user_id),
   FOREIGN KEY (grupo_id) REFERENCES grupos(id)   ON DELETE CASCADE,
   FOREIGN KEY (user_id)  REFERENCES profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE invitaciones_grupo (
+  id          CHAR(36) NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  grupo_id    CHAR(36) NOT NULL,
+  emisor_id   CHAR(36) NOT NULL,
+  receptor_id CHAR(36) NOT NULL,
+  created_at  DATETIME NOT NULL DEFAULT NOW(),
+  UNIQUE KEY uk_invitacion (grupo_id, receptor_id),
+  FOREIGN KEY (grupo_id)    REFERENCES grupos(id)   ON DELETE CASCADE,
+  FOREIGN KEY (emisor_id)   REFERENCES profiles(id) ON DELETE CASCADE,
+  FOREIGN KEY (receptor_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE mensajes_grupo (
+  id         CHAR(36) NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  grupo_id   CHAR(36) NOT NULL,
+  emisor_id  CHAR(36) NOT NULL,
+  contenido  TEXT     NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT NOW(),
+  FOREIGN KEY (grupo_id)  REFERENCES grupos(id)   ON DELETE CASCADE,
+  FOREIGN KEY (emisor_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -260,35 +287,9 @@ CREATE TABLE puntos_interes (
 );
 
 -- ============================================================
--- TRIGGERS
+-- NOTA: la sincronización que antes hacían los triggers
+-- (confirmaciones, ultimo_mensaje_at, conversaciones_ocultas)
+-- se gestiona ahora en el backend (incidencias.ts, chat.ts),
+-- porque los hosts MySQL gestionados (p. ej. Clever Cloud)
+-- no conceden privilegio SUPER para crear triggers.
 -- ============================================================
-
-DELIMITER $$
-
-CREATE TRIGGER trg_sync_confirmaciones_insert
-  AFTER INSERT ON confirmaciones_incidencia
-  FOR EACH ROW
-BEGIN
-  UPDATE incidencias
-  SET confirmaciones = confirmaciones + 1, updated_at = NOW()
-  WHERE id = NEW.incidencia_id;
-END$$
-
-CREATE TRIGGER trg_sync_confirmaciones_delete
-  AFTER DELETE ON confirmaciones_incidencia
-  FOR EACH ROW
-BEGIN
-  UPDATE incidencias
-  SET confirmaciones = GREATEST(confirmaciones - 1, 0), updated_at = NOW()
-  WHERE id = OLD.incidencia_id;
-END$$
-
-CREATE TRIGGER trg_sync_conversacion_on_mensaje
-  AFTER INSERT ON mensajes
-  FOR EACH ROW
-BEGIN
-  UPDATE conversaciones SET ultimo_mensaje_at = NEW.created_at WHERE id = NEW.conversacion_id;
-  DELETE FROM conversaciones_ocultas WHERE conversacion_id = NEW.conversacion_id;
-END$$
-
-DELIMITER ;

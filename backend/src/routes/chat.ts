@@ -167,6 +167,8 @@ router.post('/:id/mensajes', requireAuth, async (req, res) => {
 
   const mensajeId = uuidv4();
   await pool.execute('INSERT INTO mensajes (id, conversacion_id, emisor_id, contenido) VALUES (?, ?, ?, ?)', [mensajeId, conversacionId, userId, contenido]);
+  await pool.execute('UPDATE conversaciones SET ultimo_mensaje_at = NOW() WHERE id = ?', [conversacionId]);
+  await pool.execute('DELETE FROM conversaciones_ocultas WHERE conversacion_id = ?', [conversacionId]);
 
   const [rows] = await pool.execute<any[]>(
     'SELECT id, conversacion_id, emisor_id, contenido, created_at, leido FROM mensajes WHERE id = ?', [mensajeId]

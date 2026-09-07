@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
-import { View, Text, FlatList, Image, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, TextInput, FlatList, Image, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getSession } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
-import { getConversaciones, ocultarConversacion } from '@/lib/api';
+import { getConversaciones, ocultarConversacion, getAmigos, crearOAbrirChat } from '@/lib/api';
 
 interface Conversacion {
   id: string;
@@ -15,6 +15,15 @@ interface Conversacion {
   ultimo_mensaje: { contenido: string; created_at: string; emisor_id: string } | null;
   no_leidos: number;
   ultimo_mensaje_at: string;
+}
+
+interface Amigo {
+  id: string;
+  username: string;
+  nombre: string;
+  apellidos: string;
+  avatar_url: string | null;
+  online: boolean;
 }
 
 function formatFecha(iso: string) {
@@ -32,6 +41,11 @@ export default function ChatsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Buscador de amigos
+  const [query, setQuery] = useState('');
+  const [amigos, setAmigos] = useState<Amigo[]>([]);
+  const [iniciando, setIniciando] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     const session = await getSession();
     if (!session) { router.replace('/entrar'); return; }
@@ -39,7 +53,14 @@ export default function ChatsScreen() {
     setLoading(false);
   }, [router]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const loadAmigos = useCallback(async () => {
+    const session = await getSession();
+    if (!session) return;
+    const { data } = await getAmigos(session.user.username, session.token);
+    if (data) setAmigos(data);
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); loadAmigos(); }, [load, loadAmigos]));
 
   async function onRefresh() {
     setRefreshing(true);
@@ -55,6 +76,24 @@ export default function ChatsScreen() {
     }
   }
 
+  async function handleIniciarChat(username: string) {
+    const session = await getSession();
+    if (!session) return;
+    setIniciando(username);
+    const id = await crearOAbrirChat(username, session.token);
+    setIniciando(null);
+    if (id) { setQuery(''); router.push(`/chats/${id}` as any); }
+  }
+
+  const q = query.trim().toLowerCase();
+  const resultados = q
+    ? amigos.filter(a =>
+        a.username.toLowerCase().includes(q) ||
+        a.nombre.toLowerCase().includes(q) ||
+        a.apellidos.toLowerCase().includes(q)
+      )
+    : [];
+
   return (
     <View style={s.screen}>
       <View style={s.header}>
@@ -64,10 +103,64 @@ export default function ChatsScreen() {
         </TouchableOpacity>
         <Text style={s.eyebrow}>COMUNIDAD</Text>
         <Text style={s.title}>MENSAJES</Text>
+
+        <View style={s.searchBox}>
+          <Ionicons name="search" size={16} color={colors.muted} />
+          <TextInput
+            style={s.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Buscar amigo para chatear..."
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+          />
+          {query ? (
+            <TouchableOpacity onPress={() => setQuery('')}>
+              <Ionicons name="close" size={16} color={colors.muted} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
       {loading ? (
         <View style={s.center}><ActivityIndicator color={colors.primary} /></View>
+      ) : q ? (
+        <FlatList
+          data={resultados}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={resultados.length === 0 ? [s.list, { flexGrow: 1 }] : s.list}
+          ListEmptyComponent={
+            <View style={s.empty}>
+              <Ionicons name="person-outline" size={40} color={colors.muted} style={{ opacity: 0.4 }} />
+              <Text style={s.emptyText}>No se encontró ningún amigo</Text>
+            </View>
+          }
+          renderItem={({ item: a }) => {
+            const initials = `${a.nombre.charAt(0)}${a.apellidos?.charAt(0) ?? ''}`.toUpperCase();
+            const isIniciando = iniciando === a.username;
+            return (
+              <TouchableOpacity style={s.card} onPress={() => handleIniciarChat(a.username)} disabled={isIniciando}>
+                <View style={s.cardMain}>
+                  <View style={s.avatarWrap}>
+                    {a.avatar_url
+                      ? <Image source={{ uri: a.avatar_url }} style={s.avatarImg} />
+                      : <Text style={s.avatarText}>{initials}</Text>
+                    }
+                    {a.online && <View style={s.onlineDot} />}
+                  </View>
+                  <View style={s.info}>
+                    <Text style={s.name} numberOfLines={1}>{a.nombre} {a.apellidos}</Text>
+                    <Text style={s.lastMsg} numberOfLines={1}>@{a.username}</Text>
+                  </View>
+                  {isIniciando
+                    ? <ActivityIndicator size="small" color={colors.primary} />
+                    : <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
+                  }
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
       ) : (
         <FlatList
           data={conversaciones}
@@ -78,6 +171,7 @@ export default function ChatsScreen() {
             <View style={s.empty}>
               <Ionicons name="chatbubble-ellipses-outline" size={40} color={colors.muted} style={{ opacity: 0.4 }} />
               <Text style={s.emptyText}>No tienes conversaciones todavía</Text>
+              <Text style={[s.emptyText, { fontSize: 12, opacity: 0.7 }]}>Busca un amigo arriba para empezar</Text>
             </View>
           }
           renderItem={({ item }) => {
@@ -129,7 +223,13 @@ const s = StyleSheet.create({
   back: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 20 },
   backText: { color: colors.foreground, fontSize: 14, fontWeight: '600' },
   eyebrow: { color: colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 2, marginBottom: 4 },
-  title: { color: colors.foreground, fontSize: 26, fontWeight: '900', letterSpacing: 0.5 },
+  title: { color: colors.foreground, fontSize: 26, fontWeight: '900', letterSpacing: 0.5, marginBottom: 16 },
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2,
+    borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  searchInput: { flex: 1, color: colors.foreground, fontSize: 13 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10 },
   emptyText: { color: colors.muted, fontSize: 14, textAlign: 'center' },

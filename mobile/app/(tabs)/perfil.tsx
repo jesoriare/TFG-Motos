@@ -4,7 +4,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getSession, subscribe } from '@/lib/auth';
 import { colors, radius } from '@/constants/theme';
-import { getSolicitudesAmistad, getAmigosCount, getMe, getRutas, logout } from '@/lib/api';
+import { getSolicitudesAmistad, getAmigosCount, getInvitacionesGrupo, getNoLeidosGrupo, getMe, getRutas, logout } from '@/lib/api';
 import ChatAccess from '@/components/ChatAccess';
 
 function SinSesion() {
@@ -47,6 +47,8 @@ export default function PerfilScreen() {
   const [rutasCount, setRutasCount] = useState(0);
   const [sinSesion, setSinSesion] = useState(false);
   const [solicitudesCount, setSolicitudesCount] = useState(0);
+  const [gruposInvitacionesCount, setGruposInvitacionesCount] = useState(0);
+  const [gruposNoLeidosCount, setGruposNoLeidosCount] = useState(0);
   const [friendCount, setFriendCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -84,6 +86,11 @@ export default function PerfilScreen() {
 
     const solicitudes = await getSolicitudesAmistad(session.token);
     setSolicitudesCount(solicitudes.length);
+
+    const invitacionesGrupo = await getInvitacionesGrupo(session.token);
+    setGruposInvitacionesCount(invitacionesGrupo.length);
+
+    setGruposNoLeidosCount(await getNoLeidosGrupo(session.token));
   }
 
   async function onRefresh() {
@@ -199,6 +206,17 @@ export default function PerfilScreen() {
             </View>
           )}
           <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: solicitudesCount > 0 ? 8 : 'auto' }} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.actionBtn} onPress={() => router.push('/grupos' as any)}>
+          <Ionicons name="people-outline" size={18} color={colors.foreground} />
+          <Text style={s.actionText}>Mis grupos</Text>
+          {(gruposInvitacionesCount + gruposNoLeidosCount) > 0 && (
+            <View style={[s.badge, { marginLeft: 'auto' }]}>
+              <Text style={s.badgeText}>{gruposInvitacionesCount + gruposNoLeidosCount}</Text>
+            </View>
+          )}
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: (gruposInvitacionesCount + gruposNoLeidosCount) > 0 ? 8 : 'auto' }} />
         </TouchableOpacity>
 
         <TouchableOpacity style={[s.actionBtn, s.logoutBtn]} onPress={handleLogout}>

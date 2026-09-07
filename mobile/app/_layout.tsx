@@ -51,6 +51,9 @@ export default function RootLayout() {
         <Stack.Screen name="perfil/editar" />
         <Stack.Screen name="solicitudes" />
         <Stack.Screen name="amigos/[username]" />
+        <Stack.Screen name="grupos/index" />
+        <Stack.Screen name="grupos/crear" />
+        <Stack.Screen name="grupos/[id]" />
         <Stack.Screen name="chats/index" />
         <Stack.Screen name="chats/[id]" />
       </Stack>

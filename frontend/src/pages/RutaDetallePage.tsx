@@ -8,7 +8,7 @@ import {
   ArrowLeft, MapPin, Route, Clock, Gauge, Mountain, Tag,
   Star, Shield, User, AlertCircle, Pencil,
 } from "lucide-react";
-import { getMe, getToken } from "@/lib/api";
+import { getMe, getToken, valorarRuta } from "@/lib/api";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3001";
 
@@ -102,17 +102,37 @@ export default function RutaDetallePage() {
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
   const [waypointNames, setWaypointNames] = useState<string[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [puntuacion, setPuntuacion] = useState(0);
+  const [hoverPuntuacion, setHoverPuntuacion] = useState(0);
+  const [comentario, setComentario] = useState("");
+  const [enviandoVal, setEnviandoVal] = useState(false);
+  const [valMsg, setValMsg] = useState<{ type: "ok" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     setCurrentUserId(getMe()?.id ?? null);
   }, []);
 
-  useEffect(() => {
+  function recargarRuta() {
     fetch(`${API_URL}/rutas/${id}`)
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then((data: Ruta) => { setRuta(data); setLoading(false); })
       .catch(() => { setNotFound(true); setLoading(false); });
-  }, [id]);
+  }
+
+  useEffect(() => { recargarRuta(); }, [id]);
+
+  async function handleValorar() {
+    if (puntuacion === 0) { setValMsg({ type: "error", text: "Selecciona una puntuación" }); return; }
+    const token = getToken();
+    if (!token) { setValMsg({ type: "error", text: "Debes iniciar sesión" }); return; }
+    setEnviandoVal(true);
+    setValMsg(null);
+    const { error } = await valorarRuta(id!, puntuacion, comentario.trim() || null, token);
+    setEnviandoVal(false);
+    if (error) { setValMsg({ type: "error", text: error }); return; }
+    setValMsg({ type: "ok", text: "¡Gracias por tu valoración!" });
+    recargarRuta();
+  }
 
   useEffect(() => {
     if (!ruta?.waypoints?.length) return;
@@ -369,6 +389,49 @@ export default function RutaDetallePage() {
                     {v.comentario && <p className="text-xs text-muted-foreground">{v.comentario}</p>}
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Dejar valoración */}
+            {currentUserId && currentUserId !== ruta.user_id && (
+              <div className="card-surface rounded-xl p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                  <Pencil className="h-3.5 w-3.5" /> Deja tu valoración
+                </p>
+                <div className="flex items-center gap-1 mb-3">
+                  {Array.from({ length: 5 }).map((_, i) => {
+                    const filled = i < (hoverPuntuacion || puntuacion);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setPuntuacion(i + 1)}
+                        onMouseEnter={() => setHoverPuntuacion(i + 1)}
+                        onMouseLeave={() => setHoverPuntuacion(0)}
+                        className="p-0.5"
+                      >
+                        <Star className={`h-6 w-6 transition-colors ${filled ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"}`} />
+                      </button>
+                    );
+                  })}
+                </div>
+                <textarea
+                  value={comentario}
+                  onChange={(e) => setComentario(e.target.value)}
+                  placeholder="Comentario (opcional)"
+                  rows={3}
+                  className="w-full rounded-md border border-border bg-surface-3 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary resize-none mb-3"
+                />
+                {valMsg && (
+                  <p className={`text-xs mb-3 ${valMsg.type === "ok" ? "text-success" : "text-danger"}`}>{valMsg.text}</p>
+                )}
+                <button
+                  onClick={handleValorar}
+                  disabled={enviandoVal}
+                  className="w-full rounded-md bg-primary py-2.5 text-sm font-bold uppercase tracking-wider text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
+                >
+                  {enviandoVal ? "Enviando..." : "Enviar valoración"}
+                </button>
               </div>
             )}
 

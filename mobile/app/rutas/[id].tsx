@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, RefreshControl,
+  ActivityIndicator, Alert, RefreshControl, TextInput,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -360,6 +360,15 @@ export default function RutaDetalleScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              <TextInput
+                style={s.comentarioInput}
+                value={comentario}
+                onChangeText={setComentario}
+                placeholder="Comentario (opcional)"
+                placeholderTextColor={colors.muted}
+                multiline
+                numberOfLines={3}
+              />
               <TouchableOpacity
                 style={[s.valBtn, enviandoVal && { opacity: 0.5 }]}
                 onPress={handleValorar}
@@ -448,6 +457,11 @@ const s = StyleSheet.create({
   valoracionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   valoracionUser: { color: colors.foreground, fontWeight: '700', fontSize: 13 },
   valoracionComentario: { color: colors.muted, fontSize: 13 },
+  comentarioInput: {
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2,
+    borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    color: colors.foreground, fontSize: 13, textAlignVertical: 'top', minHeight: 70, marginBottom: 12,
+  },
   valBtn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 12, alignItems: 'center' },
   valBtnText: { color: colors.primaryFg, fontWeight: '800', fontSize: 13, letterSpacing: 1 },
 });
