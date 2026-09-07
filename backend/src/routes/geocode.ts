@@ -117,6 +117,34 @@ async function routeOsrm(waypoints: WaypointInput[]) {
   };
 }
 
+async function routeOrs(waypoints: WaypointInput[], orsKey: string) {
+  // cycling-road evita motorway + trunk (autopistas y autovías) de forma nativa.
+  // El tiempo lo calculamos nosotros a velocidad media de moto en carretera secundaria.
+  const response = await fetch('https://api.heigit.org/openrouteservice/v2/directions/cycling-road', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': orsKey,
+    },
+    body: JSON.stringify({
+      coordinates: waypoints.map(p => [p.lon, p.lat]),
+    }),
+  });
+  if (!response.ok) {
+    console.error('[ORS] falló (status', response.status, ')');
+    return null;
+  }
+  const data = await response.json() as {
+    routes?: Array<{ geometry: string; summary: { distance: number } }>;
+  };
+  const route = data.routes?.[0];
+  if (!route) return null;
+  const distanceKm = Math.round(route.summary.distance / 1000);
+  // Velocidad media en carreteras secundarias (sin autopistas): ~75 km/h
+  const durationMin = Math.round((distanceKm / 75) * 60);
+  return { coords: decodePolyline5(route.geometry), distanceKm, durationMin };
+}
+
 // POST /geocode/route  { waypoints: [{lat,lon},...], avoidHighways?: boolean }
 router.post('/route', async (req, res) => {
   const { waypoints, avoidHighways } = req.body as { waypoints: WaypointInput[]; avoidHighways?: boolean };
@@ -125,40 +153,19 @@ router.post('/route', async (req, res) => {
   try {
     if (avoidHighways) {
       const orsKey = process.env.ORS_API_KEY;
-      if (!orsKey) {
-        res.json(await routeOsrm(waypoints));
-        return;
-      }
-      // cycling-road evita motorway + trunk (autopistas y autovías) de forma nativa.
-      // El tiempo lo calculamos nosotros a velocidad media de moto en carretera secundaria.
-      const response = await fetch('https://api.heigit.org/openrouteservice/v2/directions/cycling-road', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': orsKey,
-        },
-        body: JSON.stringify({
-          coordinates: waypoints.map(p => [p.lon, p.lat]),
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json() as {
-          routes?: Array<{ geometry: string; summary: { distance: number } }>;
-        };
-        const route = data.routes?.[0];
-        if (route) {
-          const distanceKm = Math.round(route.summary.distance / 1000);
-          // Velocidad media en carreteras secundarias (sin autopistas): ~75 km/h
-          const durationMin = Math.round((distanceKm / 75) * 60);
-          res.json({ coords: decodePolyline5(route.geometry), distanceKm, durationMin });
-          return;
+      if (orsKey) {
+        // ORS/HeiGIT es a veces inestable (502/504 puntuales) — un par de reintentos
+        // suele bastar para que la petición pase antes de rendirse y usar OSRM.
+        const MAX_ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+          const route = await routeOrs(waypoints, orsKey).catch(() => null);
+          if (route) { res.json(route); return; }
+          if (attempt < MAX_ATTEMPTS) await new Promise(r => setTimeout(r, 1000 * attempt));
         }
+        console.error('[ORS] sin éxito tras', MAX_ATTEMPTS, 'intentos, fallback a OSRM');
       }
-      console.error('[ORS] falló (status', response.status, '), fallback a OSRM');
-      res.json(await routeOsrm(waypoints));
-    } else {
-      res.json(await routeOsrm(waypoints));
     }
+    res.json(await routeOsrm(waypoints));
   } catch (err) {
     console.error('[route] Error:', err);
     res.json(null);
