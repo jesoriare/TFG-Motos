@@ -6,6 +6,7 @@ import {
   UserPlus, UserCheck, Check, X, MessageCircle
 } from "lucide-react";
 import { getMe, getToken, apiFetch } from "@/lib/api";
+import heroMoto from "@/assets/hero-moto.jpg";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -319,7 +320,7 @@ export default function ProfilePage() {
       {/* Hero banner */}
       <div className="relative h-48 sm:h-72 overflow-hidden">
         <img
-          src="/src/assets/hero-moto.jpg"
+          src={heroMoto}
           alt="banner"
           className="h-full w-full object-cover object-center"
         />
