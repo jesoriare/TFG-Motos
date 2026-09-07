@@ -18,7 +18,7 @@ export default function HeroSection() {
         <div className="absolute inset-0 bg-gradient-to-r from-background/60 via-transparent to-background/30" />
       </div>
 
-      <div className="relative mx-auto max-w-7xl px-4 w-full">
+      <div className="relative mx-auto max-w-7xl px-4 w-full pt-24">
         {/* Badge */}
         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5">
           <span className="h-2 w-2 rounded-full bg-primary animate-pulse-orange" />
