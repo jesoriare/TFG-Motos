@@ -154,8 +154,10 @@ router.post('/route', async (req, res) => {
           return;
         }
       }
-      console.error('[ORS] falló (status', response.status, '), fallback a OSRM');
-      res.json(await routeOsrm(waypoints));
+      const errBody = await response.text().catch(() => '');
+      console.error('[ORS] falló (status', response.status, '):', errBody, '- fallback a OSRM');
+      const fallback = await routeOsrm(waypoints);
+      res.json({ ...fallback, _orsDebug: { status: response.status, body: errBody } });
     } else {
       res.json(await routeOsrm(waypoints));
     }
