@@ -28,6 +28,10 @@ Plataforma web para motoristas centrada en la organización de rutas en grupo y 
 
 Cada push a `main` redespliega frontend y backend automáticamente (Vercel y Render están conectados al repo de GitHub).
 
+**Excepción — cálculo de ruta con "evitar autopistas" (`frontend/api/route.ts`):** OpenRouteService devuelve `403 Access to this API has been disallowed` a las peticiones que salen del servidor de Render (comprobado: misma request, misma key, funciona desde cualquier otra red). Por eso esa llamada concreta no la hace el backend, sino una función serverless en el propio proyecto de Vercel (`frontend/api/route.ts`), que Vercel despliega automáticamente junto al frontend. Necesita su propia variable `ORS_API_KEY` en Vercel (Settings → Environments → Production — **sin** el prefijo `VITE_`, para que no acabe en el bundle del navegador). El backend en Render conserva su propia copia de esta lógica (con reintentos) para servir a la app móvil, que sí sigue pasando por Render.
+
+> ⚠️ En local (`npm run dev` del frontend), `/api/route` no existe — Vite no ejecuta funciones serverless de Vercel. El toggle "evitar autopistas" no tendrá efecto en desarrollo local (cae a `null` silenciosamente); para probarlo hay que hacerlo contra el despliegue de Vercel, o usar `vercel dev` si se instala el CLI de Vercel.
+
 **Cambiar variables de entorno en producción:**
 - Backend (Render): dashboard del servicio → *Environment* → editar valor → guardar (redespliega solo).
 - Frontend (Vercel): las variables `VITE_...` se incrustan en el build — si cambias una, hay que forzar un redeploy (Deployments → ⋯ → Redeploy) para que se aplique, un simple guardado no basta.
@@ -109,6 +113,8 @@ JWT_SECRET=cambia_esto_por_una_clave_secreta_larga
 
 # API key de OpenRouteService (geocoding y cálculo de rutas)
 # Gratis en https://openrouteservice.org → Dashboard → API Keys
+# En producción, esta misma key hay que ponerla TAMBIÉN en Vercel
+# (ver sección "Despliegue" — ahí es donde se usa de verdad).
 ORS_API_KEY=<tu-api-key>
 ```
 
@@ -194,7 +200,7 @@ npm run lint     # ESLint
 - Mapa interactivo con riders en tiempo real y POIs
 - Catálogo de rutas con dificultad, distancia y valoraciones — crear y editar rutas propias
 - Directorio de moteros con filtros por zona y tipo de moto
-- Sistema de alertas viales comunitarias
+- Sistema de alertas viales comunitarias, con autorrelleno de la vía/carretera al marcar el punto en el mapa
 - Chat privado entre amigos
 - Gestión de solicitudes de amistad
 - Grupos de rodada: crear, unirse a grupos públicos, invitar amigos y chat de grupo
