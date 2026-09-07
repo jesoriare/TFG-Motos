@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
 
 import authRouter from './routes/auth.js';
 import usuariosRouter from './routes/usuarios.js';
@@ -18,8 +17,7 @@ const app = express();
 const PORT = process.env.PORT ?? 3001;
 
 app.use(cors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' }));
-app.use(express.json());
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use(express.json({ limit: '4mb' })); // suficiente para avatares en base64 (máx. ~2.7MB codificados)
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/auth', authRouter);

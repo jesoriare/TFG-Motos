@@ -1,25 +1,16 @@
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'avatars');
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, `${req.body._userId ?? 'unknown'}_${Date.now()}${ext}`);
-  },
-});
-
+// Guardado en memoria: el resultado se devuelve como data URL en base64 y el
+// propio cliente lo guarda en avatar_url (MEDIUMTEXT). El disco de Render es
+// efímero (se borra en cada redeploy), así que no se persiste ningún fichero.
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB (en base64 ocupa ~33% más)
   fileFilter: (_req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -29,12 +20,9 @@ const upload = multer({
 
 // POST /upload/avatar
 router.post('/avatar', requireAuth, (req, res) => {
-  const userId = res.locals.userId as string;
-  req.body._userId = userId;
-
   upload.single('avatar')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
-      res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'La imagen no puede superar 5 MB' : err.message });
+      res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'La imagen no puede superar 2 MB' : err.message });
       return;
     }
     if (err) {
@@ -46,8 +34,7 @@ router.post('/avatar', requireAuth, (req, res) => {
       return;
     }
 
-    const apiUrl = `${req.protocol}://${req.get('host')}`;
-    const url = `${apiUrl}/uploads/avatars/${req.file.filename}`;
+    const url = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
     res.json({ url });
   });
 });

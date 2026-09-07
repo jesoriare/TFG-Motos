@@ -56,7 +56,7 @@ CREATE TABLE profiles (
   nombre          VARCHAR(255) NOT NULL,
   apellidos       VARCHAR(255) NOT NULL,
   username        VARCHAR(100) NOT NULL UNIQUE,
-  avatar_url      TEXT,
+  avatar_url      MEDIUMTEXT,
   zona            VARCHAR(100),
   verified        TINYINT(1)   NOT NULL DEFAULT 0,
   online          TINYINT(1)   NOT NULL DEFAULT 0,
