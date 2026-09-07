@@ -156,7 +156,7 @@ router.post('/:username', requireAuth, async (req, res) => {
 // POST /chat/:id/mensajes — enviar mensaje
 router.post('/:id/mensajes', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
-  const conversacionId = req.params.id;
+  const conversacionId = req.params.id as string;
   const contenido = typeof req.body?.contenido === 'string' ? req.body.contenido.trim() : '';
   if (!contenido) { res.status(400).json({ error: 'El mensaje no puede estar vacío' }); return; }
 
