@@ -12,13 +12,21 @@ Plataforma web para motoristas centrada en la organización de rutas en grupo y 
 
 **Backend**
 - Node.js + Express 4, TypeScript (tsx)
-- MySQL (mysql2) — hosted en Clever Cloud
+- MySQL (mysql2) — hosted en Railway
 - JWT (jsonwebtoken + bcryptjs), multer (subida de ficheros)
 
 **Base de datos**
-- MySQL 8.0 en [Clever Cloud](https://www.clever-cloud.com) (compatible con el schema, escrito originalmente para MariaDB)
+- MySQL en [Railway](https://railway.app) (compatible con el schema, escrito originalmente para MariaDB)
 - Schema completo en `MariaDB/schema.sql`
 - No hay servidor de base de datos en local — toda la app (local o desplegada) apunta a la misma instancia en la nube
+
+## Despliegue
+
+- **Frontend**: [Vercel](https://vercel.com) — https://tfg-motos.vercel.app
+- **Backend**: [Render](https://render.com) (plan free — la instancia se duerme tras 15 min sin tráfico, la primera petición tras eso tarda ~30-60s) — https://tfg-motos.onrender.com
+- **Base de datos**: [Railway](https://railway.app) MySQL, accesible por su endpoint público (TCP Proxy)
+
+Cada push a `main` redespliega frontend y backend automáticamente (Vercel y Render están conectados al repo de GitHub).
 
 ## Estructura del proyecto
 
@@ -38,7 +46,7 @@ TFG-Motos/
 ## Requisitos previos
 
 - **Node.js** 18 o superior
-- Acceso a la base de datos en **Clever Cloud** (credenciales del addon MySQL — pídelas si no las tienes)
+- Acceso a la base de datos en **Railway** (credenciales del servicio MySQL — pídelas si no las tienes)
 - **HeidiSQL** (recomendado en Windows) u otro cliente SQL, solo para inspeccionar la base o reimportar el schema
 
 ---
@@ -58,15 +66,15 @@ cd ../frontend && npm install
 
 ---
 
-### 2. Base de datos (Clever Cloud)
+### 2. Base de datos (Railway)
 
-La base ya existe en Clever Cloud y el schema ya está importado — no hace falta instalar ni configurar nada localmente.
+La base ya existe en Railway y el schema ya está importado — no hace falta instalar ni configurar nada localmente.
 
-- **Credenciales**: en la consola de Clever Cloud → addon MySQL (`tfg-motos-db`) → pestaña *Dashboard* → "Database Credentials".
-- **Para inspeccionar los datos**: conecta HeidiSQL (u otro cliente) con esos mismos datos (host, puerto, usuario, contraseña, nombre de la base).
-- **Si necesitas reimportar el schema** (p. ej. tras un cambio de estructura): abre `MariaDB/schema.sql` en HeidiSQL contra la conexión de Clever Cloud y ejecútalo. El script hace `DROP TABLE` de todo antes de recrear, así que borra los datos existentes.
+- **Credenciales**: en la consola de Railway → servicio MySQL → botón *Connect* → pestaña *Public Network* (host, puerto, usuario, contraseña y nombre de la base ya resueltos).
+- **Para inspeccionar los datos**: conecta HeidiSQL (u otro cliente) con esos mismos datos.
+- **Si necesitas reimportar el schema** (p. ej. tras un cambio de estructura): abre `MariaDB/schema.sql` en HeidiSQL contra la conexión de Railway y ejecútalo. El script hace `DROP TABLE` de todo antes de recrear, así que borra los datos existentes.
 
-> El schema fue escrito para MariaDB pero no usa nada específico de ese motor, así que es 100% compatible con MySQL 8.0. Los triggers que sincronizaban `confirmaciones`, `ultimo_mensaje_at` y `conversaciones_ocultas` se eliminaron del schema porque el plan gratuito de Clever Cloud no concede el privilegio `SUPER` necesario para crearlos — esa lógica ahora vive en el backend (`incidencias.ts`, `chat.ts`).
+> El schema fue escrito para MariaDB pero no usa nada específico de ese motor, así que es compatible con MySQL. Los triggers que sincronizaban `confirmaciones`, `ultimo_mensaje_at` y `conversaciones_ocultas` se eliminaron del schema (el primer proveedor probado, Clever Cloud, no concedía el privilegio `SUPER` necesario para crearlos en su plan gratuito) — esa lógica ahora vive en el backend (`incidencias.ts`, `chat.ts`), lo que además hace la app portable entre proveedores de base de datos.
 
 ---
 
@@ -83,12 +91,12 @@ PORT=3001
 # URL del frontend (para la cabecera CORS)
 FRONTEND_URL=http://localhost:8080
 
-# Conexión a la base de datos (Clever Cloud — ver "Database Credentials" en su dashboard)
-DB_HOST=<host>.services.clever-cloud.com
-DB_PORT=3306
-DB_USER=<usuario-del-addon>
-DB_PASSWORD=<password-del-addon>
-DB_NAME=<nombre-de-la-base>
+# Conexión a la base de datos (Railway — botón "Connect" del servicio MySQL → Public Network)
+DB_HOST=<host>.proxy.rlwy.net
+DB_PORT=<puerto-publico>
+DB_USER=root
+DB_PASSWORD=<password-de-railway>
+DB_NAME=railway
 
 # Secreto para firmar los JWT — cualquier cadena larga y aleatoria
 # Generar: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"

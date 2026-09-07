@@ -2,7 +2,7 @@
 
 Guía resumida — ver el README para más detalle.
 
-La base de datos vive en Clever Cloud (MySQL en la nube) — no hace falta instalar nada de base de datos en local, solo pedir las credenciales del addon.
+La base de datos vive en Railway (MySQL en la nube) — no hace falta instalar nada de base de datos en local, solo pedir las credenciales del servicio.
 
 ## Pasos rápidos
 
@@ -14,7 +14,7 @@ npm install
 cd backend && npm install
 cd ../frontend && npm install
 
-# 2. Crear los .env con las credenciales de Clever Cloud (ver plantillas abajo)
+# 2. Crear los .env con las credenciales de Railway (ver plantillas abajo)
 
 # 3. Arrancar
 start-backend.bat    # → http://localhost:3001
@@ -31,12 +31,12 @@ start-frontend.bat   # → http://localhost:8080
 PORT=3001
 FRONTEND_URL=http://localhost:8080
 
-# Clever Cloud → addon MySQL → Dashboard → "Database Credentials"
-DB_HOST=<host>.services.clever-cloud.com
-DB_PORT=3306
-DB_USER=<usuario-del-addon>
-DB_PASSWORD=<password-del-addon>
-DB_NAME=<nombre-de-la-base>
+# Railway → servicio MySQL → botón "Connect" → pestaña "Public Network"
+DB_HOST=<host>.proxy.rlwy.net
+DB_PORT=<puerto-publico>
+DB_USER=root
+DB_PASSWORD=<password-de-railway>
+DB_NAME=railway
 
 # Cualquier cadena larga y aleatoria
 # Generar: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
