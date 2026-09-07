@@ -28,6 +28,11 @@ Plataforma web para motoristas centrada en la organización de rutas en grupo y 
 
 Cada push a `main` redespliega frontend y backend automáticamente (Vercel y Render están conectados al repo de GitHub).
 
+**Cambiar variables de entorno en producción:**
+- Backend (Render): dashboard del servicio → *Environment* → editar valor → guardar (redespliega solo).
+- Frontend (Vercel): las variables `VITE_...` se incrustan en el build — si cambias una, hay que forzar un redeploy (Deployments → ⋯ → Redeploy) para que se aplique, un simple guardado no basta.
+- Base de datos (Railway): *Connect → Public Network* siempre tiene los datos vigentes; si se regenera el proxy público, cambia el host/puerto y hay que actualizar `DB_HOST`/`DB_PORT` en Render.
+
 ## Estructura del proyecto
 
 ```
@@ -187,11 +192,12 @@ npm run lint     # ESLint
 ## Funcionalidades
 
 - Mapa interactivo con riders en tiempo real y POIs
-- Catálogo de rutas con dificultad, distancia y valoraciones
+- Catálogo de rutas con dificultad, distancia y valoraciones — crear y editar rutas propias
 - Directorio de moteros con filtros por zona y tipo de moto
 - Sistema de alertas viales comunitarias
 - Chat privado entre amigos
 - Gestión de solicitudes de amistad
+- Grupos de rodada: crear, unirse a grupos públicos, invitar amigos y chat de grupo
 
 ## Design system
 
