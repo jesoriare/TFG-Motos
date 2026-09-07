@@ -112,6 +112,21 @@ export default function IncidentsSection() {
     );
   }
 
+  // Autorrellena "Vía / Carretera" con el nombre de la calle/carretera al marcar el punto
+  useEffect(() => {
+    if (!coords) return;
+    let cancelled = false;
+    fetch(`${API_URL}/geocode/reverse?lat=${coords.lat}&lng=${coords.lng}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { name?: string; road?: string | null } | null) => {
+        if (cancelled || !data) return;
+        const label = data.road ?? data.name;
+        if (label) setForm(p => ({ ...p, via: label }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [coords]);
+
   useEffect(() => {
     if (modalOpen && coords === null) locate();
   }, [modalOpen]);

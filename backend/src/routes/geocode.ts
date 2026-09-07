@@ -34,8 +34,9 @@ router.get('/reverse', (req, res) => {
       const name = place
         ? (state ? `${place}, ${state}` : place)
         : (data.display_name?.split(',').slice(0, 2).join(',').trim() ?? `${lat}, ${lng}`);
+      const road = a.road ?? a.pedestrian ?? null;
 
-      res.json({ name });
+      res.json({ name, road });
     } catch {
       res.json({ name: `${lat}, ${lng}` });
     }
