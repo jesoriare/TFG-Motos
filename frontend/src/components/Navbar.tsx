@@ -219,10 +219,16 @@ export default function Navbar() {
               </button>
             </div>
           ) : (
-            <button onClick={() => { setOpen(false); navigate("/registro"); }}
-              className="mt-4 w-full rounded-md bg-primary py-2.5 text-sm font-bold uppercase tracking-wider text-primary-foreground">
-              Únete gratis
-            </button>
+            <div className="mt-4 flex flex-col gap-2">
+              <button onClick={() => { setOpen(false); navigate("/entrar"); }}
+                className="w-full rounded-md border border-border py-2.5 text-sm font-bold uppercase tracking-wider text-foreground">
+                Entrar
+              </button>
+              <button onClick={() => { setOpen(false); navigate("/registro"); }}
+                className="w-full rounded-md bg-primary py-2.5 text-sm font-bold uppercase tracking-wider text-primary-foreground">
+                Únete gratis
+              </button>
+            </div>
           )}
         </div>
       )}
