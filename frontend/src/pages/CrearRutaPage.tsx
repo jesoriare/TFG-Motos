@@ -48,7 +48,7 @@ function MapClickHandler({ onAdd }: { onAdd: (lat: number, lng: number) => void 
 async function getOsrmRoute(pts: Waypoint[], avoidHighways = false) {
   if (pts.length < 2) return null;
   try {
-    const res = await fetch(`${API_URL}/geocode/route`, {
+    const res = await fetch(`/api/route`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ waypoints: pts.map(p => ({ lat: p.lat, lon: p.lng })), avoidHighways }),
