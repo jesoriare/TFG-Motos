@@ -2,6 +2,43 @@ import { Router } from 'express';
 
 const router = Router();
 
+// Caché en memoria: las mismas coordenadas/consultas no vuelven a pedirse a Nominatim
+// (se pierde en cada redeploy/reinicio de Render, pero evita repetir trabajo mientras
+// la instancia está viva, que es cuando más pega el límite de tasa de Nominatim).
+const reverseCache = new Map<string, { name: string; road: string | null }>();
+const searchCache = new Map<string, Array<{ label: string; lat: number; lng: number }>>();
+
+// Redondeo a 5 decimales (~1 m de precisión): agrupa coordenadas casi idénticas
+// (p. ej. el mismo waypoint pedido varias veces) bajo la misma clave de caché.
+function roundCoord(n: number): number {
+  return Math.round(n * 1e5) / 1e5;
+}
+
+// Si Nominatim devuelve 429, deja de insistir para TODAS las peticiones (no solo la
+// actual) durante este tiempo: reintentar en caliente contra un servicio que ya está
+// limitando por tasa solo empeora el bloqueo, en vez de ayudar a recuperarlo.
+const COOLDOWN_MS = 30_000;
+let cooldownUntil = 0;
+
+// Reintenta con backoff exponencial ante fallos de red o 5xx de Nominatim.
+// Un 4xx que no sea 429 (p. ej. parámetros mal formados) no se reintenta, no va a cambiar.
+async function fetchWithRetry(url: string, headers: Record<string, string>, maxAttempts = 3): Promise<Response | null> {
+  if (Date.now() < cooldownUntil) return null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, { headers });
+      if (response.ok) return response;
+      if (response.status === 429) { cooldownUntil = Date.now() + COOLDOWN_MS; return null; }
+      if (response.status < 500) return response;
+    } catch {
+      // error de red: se trata igual que un fallo de servidor y se reintenta
+    }
+    if (attempt < maxAttempts) await new Promise(r => setTimeout(r, 800 * attempt));
+  }
+  return null;
+}
+
 // Cola serializada: cada petición espera a la anterior + 1100 ms
 let tail: Promise<void> = Promise.resolve();
 
@@ -19,13 +56,17 @@ router.get('/reverse', (req, res) => {
   const { lat, lng } = req.query as { lat?: string; lng?: string };
   if (!lat || !lng) { res.status(400).json({ error: 'lat y lng requeridos' }); return; }
 
+  const cacheKey = `${roundCoord(parseFloat(lat))},${roundCoord(parseFloat(lng))}`;
+  const cached = reverseCache.get(cacheKey);
+  if (cached) { res.json(cached); return; }
+
   enqueue(async () => {
     try {
-      const response = await fetch(
+      const response = await fetchWithRetry(
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-        { headers: { 'Accept-Language': 'es', 'User-Agent': 'RodadaMoto/1.0' } }
+        { 'Accept-Language': 'es', 'User-Agent': 'RodadaMoto/1.0' }
       );
-      if (!response.ok) { res.json({ name: `${lat}, ${lng}` }); return; }
+      if (!response || !response.ok) { res.json({ name: `${lat}, ${lng}`, road: null }); return; }
 
       const data = await response.json() as { address?: Record<string, string>; display_name?: string };
       const a = data.address ?? {};
@@ -36,9 +77,11 @@ router.get('/reverse', (req, res) => {
         : (data.display_name?.split(',').slice(0, 2).join(',').trim() ?? `${lat}, ${lng}`);
       const road = a.road ?? a.pedestrian ?? null;
 
-      res.json({ name, road });
+      const result = { name, road };
+      reverseCache.set(cacheKey, result);
+      res.json(result);
     } catch {
-      res.json({ name: `${lat}, ${lng}` });
+      res.json({ name: `${lat}, ${lng}`, road: null });
     }
   });
 });
@@ -59,11 +102,15 @@ router.get('/search', (req, res) => {
   const { q } = req.query as { q?: string };
   if (!q || q.trim().length < 2) { res.json([]); return; }
 
+  const cacheKey = q.trim().toLowerCase();
+  const cached = searchCache.get(cacheKey);
+  if (cached) { res.json(cached); return; }
+
   enqueueSearch(async () => {
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&accept-language=es&addressdetails=1`;
-      const response = await fetch(url, { headers: { 'User-Agent': 'RodadaMoto/1.0' } });
-      if (!response.ok) { res.json([]); return; }
+      const response = await fetchWithRetry(url, { 'User-Agent': 'RodadaMoto/1.0' });
+      if (!response || !response.ok) { res.json([]); return; }
 
       const data = await response.json() as Array<{
         lat: string; lon: string; display_name: string;
@@ -78,6 +125,7 @@ router.get('/search', (req, res) => {
         return { label, lat: parseFloat(item.lat), lng: parseFloat(item.lon) };
       });
 
+      searchCache.set(cacheKey, results);
       res.json(results);
     } catch {
       res.json([]);
