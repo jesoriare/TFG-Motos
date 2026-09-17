@@ -87,13 +87,6 @@ export async function subirAvatar(fileUri: string, token: string): Promise<{ err
   return { url: json.url };
 }
 
-export async function getMapaRiders() {
-  const res = await fetch(`${API_URL}/mapa/riders`);
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.map((r: any) => ({ ...r, user_id: r.profiles?.id }));
-}
-
 export async function crearRuta(payload: {
   nombre: string; region: string; distancia_km: number; duracion_min: number;
   dificultad: string; descripcion?: string | null; tags?: string[]; waypoints?: any[];

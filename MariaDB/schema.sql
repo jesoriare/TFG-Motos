@@ -27,7 +27,6 @@ DROP TABLE IF EXISTS valoraciones_ruta;
 DROP TABLE IF EXISTS rutas;
 DROP TABLE IF EXISTS motos;
 DROP TABLE IF EXISTS puntos_interes;
-DROP TABLE IF EXISTS ubicaciones;
 DROP TABLE IF EXISTS mensajes_grupo;
 DROP TABLE IF EXISTS miembros_grupo;
 DROP TABLE IF EXISTS grupos;
@@ -263,16 +262,8 @@ CREATE TABLE mensajes_grupo (
 );
 
 -- ============================================================
--- MAPA EN TIEMPO REAL
+-- PUNTOS DE INTERES EN EL MAPA
 -- ============================================================
-
-CREATE TABLE ubicaciones (
-  user_id    CHAR(36)      NOT NULL PRIMARY KEY,
-  lat        DECIMAL(10,6) NOT NULL,
-  lng        DECIMAL(10,6) NOT NULL,
-  updated_at DATETIME      NOT NULL DEFAULT NOW(),
-  FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
-);
 
 CREATE TABLE puntos_interes (
   id          CHAR(36)      NOT NULL DEFAULT (UUID()) PRIMARY KEY,
