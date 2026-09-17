@@ -18,7 +18,7 @@ Plataforma web para motoristas centrada en la organización de rutas en grupo y 
 **Base de datos**
 - MySQL en [Railway](https://railway.app) (compatible con el schema, escrito originalmente para MariaDB)
 - Schema completo en `MariaDB/schema.sql`
-- No hay servidor de base de datos en local — toda la app (local o desplegada) apunta a la misma instancia en la nube
+- Por defecto la app (local o desplegada) apunta a la misma instancia en la nube en Railway — no hace falta instalar nada localmente. También se puede levantar una MariaDB en local para desarrollar sin depender de la conexión a Railway (ver "2b. Alternativa: MariaDB en local")
 
 ## Despliegue
 
@@ -87,6 +87,35 @@ La base ya existe en Railway y el schema ya está importado — no hace falta in
 
 ---
 
+### 2b. Alternativa: MariaDB en local
+
+Si prefieres desarrollar sin depender de la conexión a Railway, puedes levantar una MariaDB en tu propia máquina:
+
+1. **Instala MariaDB** ([mariadb.org/download](https://mariadb.org/download)) y arranca el servicio.
+2. **Crea la base de datos y un usuario dedicado** (ajusta el nombre de la base y la contraseña a tu gusto):
+
+   ```sql
+   CREATE DATABASE nombre_de_tu_bd;
+   CREATE USER 'tfg_user'@'localhost' IDENTIFIED BY 'tu-password';
+   GRANT ALL PRIVILEGES ON nombre_de_tu_bd.* TO 'tfg_user'@'localhost';
+   FLUSH PRIVILEGES;
+   ```
+
+3. **Importa el schema**: abre `MariaDB/schema.sql` con HeidiSQL (u otro cliente, o `mysql -u tfg_user -p nombre_de_tu_bd < MariaDB/schema.sql`) contra tu instancia local y ejecútalo.
+4. **Configura `backend/.env`** para apuntar a tu MariaDB local en vez de a Railway:
+
+   ```env
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_USER=tfg_user
+   DB_PASSWORD=tu-password
+   DB_NAME=nombre_de_tu_bd
+   ```
+
+Con esto el backend habla con MariaDB en el mismo equipo por el puerto 3306 local, sin salir a Railway — es la arquitectura que describe la Memoria para el entorno de desarrollo (apartado 10.2).
+
+---
+
 ### 3. Variables de entorno
 
 Los `.env` **no están en git** — hay que crearlos a mano en cada máquina.
@@ -101,6 +130,7 @@ PORT=3001
 FRONTEND_URL=http://localhost:8080
 
 # Conexión a la base de datos (Railway — botón "Connect" del servicio MySQL → Public Network)
+# Si usas MariaDB en local en su lugar, ver "2b. Alternativa: MariaDB en local" más arriba
 DB_HOST=<host>.proxy.rlwy.net
 DB_PORT=<puerto-publico>
 DB_USER=root
