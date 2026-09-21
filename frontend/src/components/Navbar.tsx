@@ -2,6 +2,7 @@ import { MapPin, Menu, X, User, LogOut, UserPlus, MessageCircle, Users } from "l
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getMe, getToken, logout, getNoLeidosGrupo, type AuthUser } from "@/lib/api";
+import ThemeToggle from "@/components/ThemeToggle";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -112,6 +113,7 @@ export default function Navbar() {
 
         {/* CTA desktop */}
         <div className="hidden md:flex items-center gap-3">
+          <ThemeToggle />
           {user ? (
             <div className="flex items-center gap-3">
               <button onClick={() => navigate("/solicitudes")} title="Solicitudes de amistad"
@@ -168,9 +170,12 @@ export default function Navbar() {
           )}
         </div>
 
-        <button className="md:hidden text-muted-foreground" onClick={() => setOpen(!open)}>
-          {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle />
+          <button className="text-muted-foreground" onClick={() => setOpen(!open)}>
+            {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
+        </div>
       </div>
 
       {open && (
