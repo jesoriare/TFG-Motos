@@ -1,10 +1,20 @@
 import heroMoto from "@/assets/hero-moto.jpg";
 import { ArrowRight, Users, Route, AlertTriangle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getUsuariosStats, getRutasStats } from "@/lib/api";
 
 export default function HeroSection() {
+  const [totalUsuarios, setTotalUsuarios] = useState<number | null>(null);
+  const [totalRutas, setTotalRutas] = useState<number | null>(null);
+
+  useEffect(() => {
+    getUsuariosStats().then(setTotalUsuarios);
+    getRutasStats().then(setTotalRutas);
+  }, []);
+
   const stats = [
-    { icon: Users, value: "12.400+", label: "Moteros activos" },
-    { icon: Route, value: "3.800+", label: "Rutas publicadas" },
+    { icon: Users, value: totalUsuarios !== null ? totalUsuarios.toLocaleString("es-ES") : "—", label: "Moteros activos" },
+    { icon: Route, value: totalRutas !== null ? totalRutas.toLocaleString("es-ES") : "—", label: "Rutas publicadas" },
     { icon: AlertTriangle, value: "En directo", label: "Incidencias en tiempo real" },
   ];
 

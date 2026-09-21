@@ -90,6 +90,13 @@ router.put('/me', requireAuth, async (req, res) => {
   res.json(toProfileJson(rows[0], motosActualizadas));
 });
 
+// GET /usuarios/stats — total de usuarios registrados (para estadísticas públicas de la portada)
+// NOTA: debe declararse antes de GET /:username, si no Express la capturaría como username="stats"
+router.get('/stats', async (req, res) => {
+  const [rows] = await pool.execute<any[]>('SELECT COUNT(*) AS total FROM profiles');
+  res.json({ total: Number(rows[0].total) });
+});
+
 // GET /usuarios/:username — perfil público
 router.get('/:username', async (req, res) => {
   const [profiles] = await pool.execute<any[]>(
