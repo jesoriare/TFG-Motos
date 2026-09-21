@@ -44,6 +44,13 @@ router.get('/', async (req, res) => {
   })));
 });
 
+// GET /rutas/stats — total de rutas publicadas (para estadísticas públicas de la portada)
+// NOTA: debe declararse antes de GET /:id, si no Express la capturaría como id="stats"
+router.get('/stats', async (req, res) => {
+  const [rows] = await pool.execute<any[]>('SELECT COUNT(*) AS total FROM rutas WHERE publicada = 1');
+  res.json({ total: Number(rows[0].total) });
+});
+
 // GET /rutas/:id
 router.get('/:id', async (req, res) => {
   const [rows] = await pool.execute<any[]>(`

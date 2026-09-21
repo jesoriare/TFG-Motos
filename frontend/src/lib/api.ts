@@ -231,6 +231,22 @@ export async function getNoLeidosGrupo(token: string): Promise<number> {
   return (await res.json()).count ?? 0;
 }
 
+export async function getUsuariosStats(): Promise<number | null> {
+  try {
+    const res = await fetch(`${API_URL}/usuarios/stats`);
+    if (!res.ok) return null;
+    return (await res.json()).total ?? null;
+  } catch { return null; }
+}
+
+export async function getRutasStats(): Promise<number | null> {
+  try {
+    const res = await fetch(`${API_URL}/rutas/stats`);
+    if (!res.ok) return null;
+    return (await res.json()).total ?? null;
+  } catch { return null; }
+}
+
 export async function valorarRuta(id: string, puntuacion: number, comentario: string | null, token: string): Promise<{ error?: string }> {
   const res = await fetch(`${API_URL}/rutas/${id}/valorar`, {
     method: 'POST',
