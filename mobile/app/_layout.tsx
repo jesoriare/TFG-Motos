@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import * as Notifications from 'expo-notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { getSession, subscribe } from '@/lib/auth';
 import { colors } from '@/constants/theme';
-import { registerForPushNotificationsAsync } from '@/lib/notifications';
+import { registerForPushNotificationsAsync, onNotificacionChatPulsada } from '@/lib/notifications';
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
@@ -25,11 +24,9 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const conversacionId = response.notification.request.content.data?.conversacionId;
-      if (conversacionId) router.push(`/chats/${conversacionId}` as any);
+    return onNotificacionChatPulsada((conversacionId) => {
+      router.push(`/chats/${conversacionId}` as any);
     });
-    return () => sub.remove();
   }, [router]);
 
   if (!ready) return null;

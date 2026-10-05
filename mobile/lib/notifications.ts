@@ -1,10 +1,19 @@
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { guardarPushToken } from './api';
 
-Notifications.setNotificationHandler({
+// Expo Go en Android no soporta push remotas desde el SDK 53 y lanza un error con solo importar
+// expo-notifications, así que ahí no se carga el módulo (en un build real sí)
+const pushDisponible = !(
+  Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient
+);
+
+const Notifications: typeof import('expo-notifications') | null = pushDisponible
+  ? require('expo-notifications')
+  : null;
+
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
@@ -15,7 +24,7 @@ Notifications.setNotificationHandler({
 });
 
 export async function registerForPushNotificationsAsync(token: string) {
-  if (!Device.isDevice) return;
+  if (!Notifications || !Device.isDevice) return;
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
@@ -41,4 +50,14 @@ export async function registerForPushNotificationsAsync(token: string) {
   } catch {
     // entorno sin EAS configurado: no registramos push, el resto de RF-14 funciona igual
   }
+}
+
+// Avisa cuando el usuario toca una notificación de chat; devuelve la función para dejar de escuchar
+export function onNotificacionChatPulsada(callback: (conversacionId: string) => void) {
+  if (!Notifications) return () => {};
+  const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const conversacionId = response.notification.request.content.data?.conversacionId;
+    if (conversacionId) callback(String(conversacionId));
+  });
+  return () => sub.remove();
 }
