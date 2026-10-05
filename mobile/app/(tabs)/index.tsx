@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, RefreshCon
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getSession } from '@/lib/auth';
-import { getMe } from '@/lib/api';
+import { getMe, getUsuariosStats, getRutasStats } from '@/lib/api';
 import { colors, radius } from '@/constants/theme';
 import ChatAccess from '@/components/ChatAccess';
 
@@ -12,15 +12,19 @@ export default function InicioScreen() {
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [stats] = useState([
-    { icon: 'people', value: '12.400+', label: 'Moteros activos' },
-    { icon: 'map', value: '3.800+', label: 'Rutas publicadas' },
+  const [totalUsuarios, setTotalUsuarios] = useState<number | null>(null);
+  const [totalRutas, setTotalRutas] = useState<number | null>(null);
+  const stats = [
+    { icon: 'people', value: totalUsuarios !== null ? totalUsuarios.toLocaleString('es-ES') : '—', label: 'Moteros activos' },
+    { icon: 'map', value: totalRutas !== null ? totalRutas.toLocaleString('es-ES') : '—', label: 'Rutas publicadas' },
     { icon: 'warning', value: 'En directo', label: 'Incidencias' },
-  ]);
+  ];
 
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    getUsuariosStats().then(setTotalUsuarios);
+    getRutasStats().then(setTotalRutas);
     const session = await getSession();
     if (!session) { setLoggedIn(false); return; }
     setLoggedIn(true);
