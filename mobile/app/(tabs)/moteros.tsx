@@ -80,7 +80,7 @@ export default function MoteroScreen() {
         data={TIPOS}
         keyExtractor={i => i}
         showsHorizontalScrollIndicator={false}
-        style={{ maxHeight: 40, marginBottom: 10 }}
+        style={{ flexGrow: 0, flexShrink: 0, marginBottom: 10 }}
         contentContainerStyle={{ gap: 8, paddingHorizontal: 20 }}
         renderItem={({ item }) => (
           <TouchableOpacity
